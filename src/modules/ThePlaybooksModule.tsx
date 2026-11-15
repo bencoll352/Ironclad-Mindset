@@ -20,6 +20,7 @@ interface ThePlaybooksModuleProps {
   onAskCornermanAboutPlaybook: (playbook: Playbook) => void;
   onTriggerDocuSealWebhook: (companyName: string) => void;
   initialOpenPlaybookId?: string | null;
+  initialOpenSectionIndex?: number | null;
 }
 
 export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
@@ -28,9 +29,13 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
   onAskCornermanAboutPlaybook,
   onTriggerDocuSealWebhook,
   initialOpenPlaybookId,
+  initialOpenSectionIndex,
 }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activePlaybook, setActivePlaybook] = useState<Playbook | null>(null);
+  const [highlightedSectionIdx, setHighlightedSectionIdx] = useState<
+    number | null
+  >(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Interactive Playbook 4 (HALT & CBT Worksheet) state
@@ -41,7 +46,7 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
   const [cravingRating, setCravingRating] = useState<number>(7);
   const [automaticThought, setAutomaticThought] = useState<string>('');
   const [cognitiveDistortion, setCognitiveDistortion] = useState<string>(
-    'Short-Term Magnification ("Just one or two pints to switch off")'
+    'Short-term magnification ("Just one or two pints to switch off")'
   );
   const [ironcladReframe, setIroncladReframe] = useState<string>('');
   const [actionTaken, setActionTaken] = useState<string>('');
@@ -56,9 +61,30 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
   useEffect(() => {
     if (initialOpenPlaybookId) {
       const found = PLAYBOOKS.find((p) => p.id === initialOpenPlaybookId);
-      if (found) setActivePlaybook(found);
+      if (found) {
+        setActivePlaybook(found);
+        setHighlightedSectionIdx(
+          typeof initialOpenSectionIndex === 'number'
+            ? initialOpenSectionIndex
+            : null
+        );
+      }
     }
-  }, [initialOpenPlaybookId]);
+  }, [initialOpenPlaybookId, initialOpenSectionIndex]);
+
+  useEffect(() => {
+    if (
+      activePlaybook &&
+      typeof highlightedSectionIdx === 'number'
+    ) {
+      const el = document.getElementById(
+        `${activePlaybook.id}-section-${highlightedSectionIdx}`
+      );
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+      }
+    }
+  }, [activePlaybook, highlightedSectionIdx]);
 
   const filteredPlaybooks = PLAYBOOKS.filter((pb) => {
     const q = searchQuery.toLowerCase();
@@ -72,12 +98,12 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
 
   const handleCopyPlaybook = (pb: Playbook) => {
     const text = [
-      `IRONCLAD MINDSET — PLAYBOOK ${pb.number}: ${pb.title.toUpperCase()}`,
+      `Ironclad Mindset — Playbook ${pb.number}: ${pb.title}`,
       pb.subtitle,
       '',
-      `SUMMARY: ${pb.summary}`,
+      `Summary: ${pb.summary}`,
       '',
-      'KEY TAKEAWAYS:',
+      'Key takeaways:',
       ...pb.keyTakeaways.map((k) => `• ${k}`),
       '',
       ...pb.sections.flatMap((s) => [
@@ -94,10 +120,11 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
   };
 
   const handleAutoGenerateReframe = () => {
-    const haltList = haltStates.length > 0 ? haltStates.join(' & ') : 'exhausted';
-    const generated = `My brain is currently ${haltList} after a high-pressure shift. "${
+    const haltList =
+      haltStates.length > 0 ? haltStates.join(' and ').toLowerCase() : 'tired';
+    const generated = `I am feeling ${haltList} after a demanding shift. "${
       automaticThought || 'Having a drink to switch off'
-    }" is a temporary 20-minute trap that steals tomorrow's dopamine and sleep. Eating 35g+ of protein, hydrating with a cold ginger ACV spritz, and getting 8 hours of proper rest will actually fix the root cause.`;
+    }" is a short-term urge that steals tomorrow's energy and sleep. Eating a hot meal, drinking a cold ginger spritz, and getting proper rest will actually help me recover.`;
     setIroncladReframe(generated);
   };
 
@@ -115,17 +142,17 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
       }),
       haltStates,
       triggerSituation:
-        triggerSituation.trim() || 'End-of-shift pressure & fatigue',
+        triggerSituation.trim() || 'End-of-shift pressure and fatigue',
       cravingRating,
       automaticThought:
         automaticThought.trim() || 'I need a pint to bring my shoulders down.',
       cognitiveDistortion,
       ironcladReframe:
         ironcladReframe.trim() ||
-        'My nervous system needs protein, electrolytes, and real rest—not a 3 AM cortisol spike.',
+        'My body needs proper food, water, and rest—not borrowed calm from tomorrow.',
       actionTaken:
         actionTaken.trim() ||
-        'Completed HALT check, cooked a 12-min skillet meal, held the line.',
+        'Completed HALT check, cooked a 12-minute skillet meal, held the line.',
     };
 
     onSaveCBTEntry(entry);
@@ -145,64 +172,66 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Vault Header & Search Bar */}
-      <div className="forge-card rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header & Search */}
+      <section className="iron-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] flex items-center gap-1.5">
-            <BookOpen className="w-4 h-4" /> INTERACTIVE DOCUMENT VAULT & CBT WORKSHEETS
+          <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
+            <BookOpen className="w-4 h-4" /> Practical guides & interactive worksheets
           </span>
-          <h1 className="font-display text-2xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-            THE 5 IRONCLAD PLAYBOOKS
+          <h1 className="font-display text-2xl font-bold text-[#121518] mt-0.5">
+            The Playbooks
           </h1>
-          <p className="text-xs sm:text-sm text-[#94A3B8] mt-1">
-            Complete field manuals for your first 30 days, £40 mood-food shopping, UK matchdays, live CBT trigger reframing, and B2B workplace policy.
+          <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
+            Step-by-step guides for your first 30 days, £40 food shopping, UK matchdays, HALT & CBT reframing, and workplace policy.
           </p>
         </div>
 
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#475569] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <label htmlFor="playbook-search-input" className="sr-only">
+            Search playbooks
+          </label>
           <input
+            id="playbook-search-input"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search playbooks, CBT, pub scripts, B2B..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA] focus:border-[#1BB1E7] outline-none"
+            placeholder="Search playbooks, CBT, pub scripts..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs text-[#121518]"
           />
         </div>
-      </div>
+      </section>
 
       {/* Playbook Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredPlaybooks.map((pb) => (
-          <div
+          <article
             key={pb.id}
-            className="forge-card rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-[#1BB1E7]/60 transition"
+            className="iron-card p-5 flex flex-col justify-between space-y-4"
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono-metric font-bold uppercase px-2.5 py-1 rounded bg-[#7A263A] text-white border border-[#1BB1E7]/40">
-                  PLAYBOOK 0{pb.number} • {pb.category}
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#FDF2F4] text-[#7A263A] border border-[#7A263A]/20">
+                  Playbook {pb.number} • {pb.category}
                 </span>
-                <span className="text-[11px] font-mono-metric text-[#94A3B8]">
-                  {pb.readTime}
-                </span>
+                <span className="text-xs text-[#475569]">{pb.readTime}</span>
               </div>
 
-              <h2 className="font-display text-xl font-bold text-[#F8F9FA] uppercase leading-snug">
+              <h2 className="font-display text-xl font-bold text-[#121518] leading-snug">
                 {pb.title}
               </h2>
-              <p className="text-xs text-[#94A3B8] leading-relaxed">
+              <p className="text-xs text-[#334155] leading-relaxed">
                 {pb.summary}
               </p>
 
-              <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-3 space-y-1.5">
-                <div className="text-[10px] font-mono-metric uppercase text-[#1BB1E7]">
-                  CORE TAKEAWAYS:
+              <div className="iron-surface p-3 space-y-1.5">
+                <div className="text-xs font-semibold text-[#121518]">
+                  Key takeaways
                 </div>
-                <ul className="space-y-1 text-xs text-[#F8F9FA]/90">
+                <ul className="space-y-1 text-xs text-[#334155]">
                   {pb.keyTakeaways.map((kt, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-[#1BB1E7] font-bold">•</span>
+                      <span className="text-[#7A263A] font-bold">•</span>
                       <span>{kt}</span>
                     </li>
                   ))}
@@ -212,56 +241,64 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
 
             <div className="pt-2 flex flex-col gap-2">
               <button
-                onClick={() => setActivePlaybook(pb)}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#7A263A] hover:bg-[#9E334D] text-white font-display text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
+                id={`open-${pb.id}-btn`}
+                type="button"
+                onClick={() => {
+                  setHighlightedSectionIdx(null);
+                  setActivePlaybook(pb);
+                }}
+                className="iron-btn-primary w-full py-2.5 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
               >
-                <BookOpen className="w-4 h-4 text-[#1BB1E7]" />
+                <BookOpen className="w-4 h-4" />
                 {pb.isInteractiveCBT
-                  ? 'OPEN INTERACTIVE CBT WORKSHEET'
-                  : 'READ FULL PLAYBOOK'}
+                  ? 'Open interactive HALT & CBT worksheet'
+                  : 'Read full playbook'}
               </button>
 
               <div className="grid grid-cols-2 gap-2">
                 <button
+                  type="button"
                   onClick={() => handleCopyPlaybook(pb)}
-                  className="py-2 px-3 rounded-lg bg-[#121518] hover:bg-[#1E2328] border border-[#2E353D] text-[11px] font-mono-metric text-[#94A3B8] hover:text-white flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Copy className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                  {copiedId === pb.id ? 'Copied!' : 'Copy Text'}
+                  <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
+                  {copiedId === pb.id ? 'Copied' : 'Copy text'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => onAskCornermanAboutPlaybook(pb)}
-                  className="py-2 px-3 rounded-lg bg-[#121518] hover:bg-[#1E2328] border border-[#2E353D] text-[11px] font-mono-metric text-[#1BB1E7] flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Bot className="w-3.5 h-3.5" />
+                  <Bot className="w-3.5 h-3.5 text-[#0284C7]" />
                   Ask Cornerman
                 </button>
               </div>
             </div>
-          </div>
+          </article>
         ))}
       </div>
 
-      {/* Saved HALT & CBT Trigger Journal Entries Preview */}
-      <div className="forge-card rounded-2xl p-5 sm:p-6 space-y-4">
+      {/* Saved HALT & CBT Journal Archive */}
+      <section className="iron-card p-5 sm:p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <span className="text-xs font-mono-metric uppercase text-[#1BB1E7]">
-              PLAYBOOK 4 LIVE JOURNAL ARCHIVE
+            <span className="text-xs font-semibold text-[#7A263A]">
+              Playbook 4 worksheet archive
             </span>
-            <h2 className="font-display text-lg font-bold text-[#F8F9FA] uppercase">
-              YOUR SAVED HALT & CBT TRIGGER REFRAMES ({cbtEntries.length})
+            <h2 className="font-display text-lg font-bold text-[#121518]">
+              Saved HALT & CBT trigger reframes ({cbtEntries.length})
             </h2>
           </div>
           <button
+            type="button"
             onClick={() =>
               setActivePlaybook(
                 PLAYBOOKS.find((p) => p.id === 'playbook-4') || PLAYBOOKS[3]
               )
             }
-            className="py-2 px-4 rounded-xl bg-[#1BB1E7] text-[#121518] font-display text-xs font-bold uppercase tracking-wider cursor-pointer"
+            className="iron-btn-primary py-2 px-4 text-xs cursor-pointer"
           >
-            + Log New Trigger Reframe
+            + Log new trigger reframe
           </button>
         </div>
 
@@ -269,188 +306,204 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
           {cbtEntries.map((entry) => (
             <div
               key={entry.id}
-              className="bg-[#121518] border border-[#2E353D] rounded-xl p-4 space-y-2 text-xs"
+              className="iron-surface p-4 space-y-2 text-xs"
             >
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap gap-1.5">
                   {entry.haltStates.map((h) => (
                     <span
                       key={h}
-                      className="px-2 py-0.5 rounded bg-[#7A263A]/40 border border-[#7A263A] text-white font-mono-metric text-[10px] uppercase"
+                      className="px-2 py-0.5 rounded bg-white border border-[#CBD5E1] text-[#121518] font-medium text-[11px]"
                     >
                       HALT: {h}
                     </span>
                   ))}
-                  <span className="px-2 py-0.5 rounded bg-[#E63946]/20 text-[#E63946] font-mono-metric text-[10px]">
+                  <span className="px-2 py-0.5 rounded bg-[#FDF2F4] text-[#7A263A] font-semibold text-[11px]">
                     Craving {entry.cravingRating}/10
                   </span>
                 </div>
-                <span className="font-mono-metric text-[11px] text-[#94A3B8]">
+                <span className="font-mono-metric text-[11px] text-[#475569]">
                   {entry.createdAt}
                 </span>
               </div>
 
               <div>
-                <span className="text-[#94A3B8] font-semibold">Trigger: </span>
-                <span className="text-[#F8F9FA]">{entry.triggerSituation}</span>
+                <span className="text-[#475569] font-semibold">Trigger: </span>
+                <span className="text-[#121518]">{entry.triggerSituation}</span>
               </div>
               <div>
-                <span className="text-[#E63946] font-semibold">
-                  Automatic Thought:{' '}
+                <span className="text-[#B91C1C] font-semibold">
+                  Automatic thought:{' '}
                 </span>
-                <span className="italic text-[#94A3B8]">
+                <span className="italic text-[#334155]">
                   “{entry.automaticThought}”
                 </span>
               </div>
-              <div className="p-2.5 rounded-lg bg-[#1E2328] border-l-2 border-[#1BB1E7]">
-                <span className="text-[#1BB1E7] font-bold">
-                  Ironclad Reframe:{' '}
+              <div className="p-2.5 rounded-lg bg-white border-l-4 border-[#7A263A] border border-[#E2E8F0]">
+                <span className="text-[#7A263A] font-semibold">
+                  Balanced reframe:{' '}
                 </span>
-                <span className="text-[#F8F9FA]">{entry.ironcladReframe}</span>
+                <span className="text-[#121518]">{entry.ironcladReframe}</span>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* FULL PLAYBOOK READER MODAL (Including Interactive Playbook 4 Worksheet & Playbook 5 DocuSeal Hook) */}
+      {/* Playbook Reader Modal */}
       <AnimatePresence>
         {activePlaybook && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+            className="fixed inset-0 z-50 bg-[#121518]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="playbook-reader-title"
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-4xl bg-[#121518] border border-[#1BB1E7]/50 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+              exit={{ scale: 0.98, opacity: 0 }}
+              className="w-full max-w-4xl bg-white border border-[#CBD5E1] rounded-2xl shadow-lg overflow-hidden my-auto max-h-[92vh] flex flex-col"
             >
-              {/* Reader Modal Header */}
-              <div className="bg-[#1E2328] border-b border-[#2E353D] px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs font-mono-metric uppercase text-[#1BB1E7]">
-                    IRONCLAD PLAYBOOK 0{activePlaybook.number} • {activePlaybook.category}
+                  <span className="text-xs font-semibold text-[#7A263A]">
+                    Playbook {activePlaybook.number} • {activePlaybook.category}
                   </span>
-                  <h2 className="font-display text-xl sm:text-2xl font-bold text-[#F8F9FA] uppercase">
+                  <h2
+                    id="playbook-reader-title"
+                    className="font-display text-xl sm:text-2xl font-bold text-[#121518]"
+                  >
                     {activePlaybook.title}
                   </h2>
                 </div>
 
                 <div className="flex items-center gap-2 no-print">
                   <button
+                    type="button"
                     onClick={() => handleCopyPlaybook(activePlaybook)}
-                    className="py-2 px-3 rounded-lg bg-[#121518] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-semibold text-[#F8F9FA] flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Copy className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    {copiedId === activePlaybook.id ? 'Copied!' : 'Copy Text'}
+                    <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
+                    {copiedId === activePlaybook.id ? 'Copied' : 'Copy text'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => window.print()}
-                    className="py-2 px-3 rounded-lg bg-[#121518] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-semibold text-[#F8F9FA] flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Printer className="w-3.5 h-3.5 text-[#1BB1E7]" />
+                    <Printer className="w-3.5 h-3.5 text-[#7A263A]" />
                     Print / Save PDF
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       const pb = activePlaybook;
                       setActivePlaybook(null);
                       onAskCornermanAboutPlaybook(pb);
                     }}
-                    className="py-2 px-3 rounded-lg bg-[#7A263A] hover:bg-[#9E334D] text-xs font-semibold text-white flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-primary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Bot className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    Ask Cornerman About This Guide
+                    <Bot className="w-3.5 h-3.5" />
+                    Ask Cornerman
                   </button>
                   <button
+                    id="close-playbook-modal-btn"
+                    type="button"
                     onClick={() => setActivePlaybook(null)}
-                    className="p-2 rounded-lg bg-[#121518] hover:bg-[#2E353D] text-[#94A3B8] hover:text-white cursor-pointer"
+                    className="p-2 rounded-lg bg-white hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#121518] cursor-pointer"
+                    aria-label="Close playbook reader"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Reader Modal Body */}
-              <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
-                <div className="forge-card-claret rounded-xl p-4 space-y-2">
-                  <p className="text-xs sm:text-sm text-[#F8F9FA] leading-relaxed">
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+                <div className="iron-surface p-4">
+                  <p className="text-xs sm:text-sm text-[#121518] leading-relaxed">
                     {activePlaybook.summary}
                   </p>
                 </div>
 
-                {activePlaybook.sections.map((sec, idx) => (
-                  <div
-                    key={idx}
-                    className="forge-card rounded-xl p-5 space-y-3"
-                  >
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <h3 className="font-display text-lg font-bold text-[#F8F9FA] uppercase">
-                        {sec.heading}
-                      </h3>
-                      {sec.badge && (
-                        <span className="text-[11px] font-mono-metric px-2.5 py-0.5 rounded bg-[#1BB1E7]/15 text-[#1BB1E7] border border-[#1BB1E7]/30">
-                          {sec.badge}
-                        </span>
+                {activePlaybook.sections.map((sec, idx) => {
+                  const isHighlighted = highlightedSectionIdx === idx;
+                  return (
+                    <div
+                      key={idx}
+                      id={`${activePlaybook.id}-section-${idx}`}
+                      className={`p-5 rounded-xl border space-y-3 ${
+                        isHighlighted
+                          ? 'bg-[#F0F9FF] border-[#0284C7] ring-1 ring-[#0284C7]'
+                          : 'bg-white border-[#E2E8F0]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h3 className="font-display text-lg font-bold text-[#121518]">
+                          {sec.heading}
+                        </h3>
+                        {sec.badge && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded bg-[#F8FAFC] text-[#7A263A] border border-[#CBD5E1]">
+                            {sec.badge}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-2.5 text-xs sm:text-sm text-[#334155] leading-relaxed">
+                        {sec.body.map((p, i) => (
+                          <p key={i}>{p}</p>
+                        ))}
+                      </div>
+                      {sec.actionPoints && sec.actionPoints.length > 0 && (
+                        <div className="pt-3 border-t border-[#E2E8F0] space-y-1.5">
+                          <div className="text-xs font-semibold text-[#7A263A]">
+                            Practical steps:
+                          </div>
+                          <ul className="space-y-1 text-xs text-[#121518]">
+                            {sec.actionPoints.map((ap, j) => (
+                              <li key={j} className="flex items-start gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0 mt-0.5" />
+                                <span>{ap}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
-                    <div className="space-y-2.5 text-xs sm:text-sm text-[#F8F9FA]/90 leading-relaxed">
-                      {sec.body.map((p, i) => (
-                        <p key={i}>{p}</p>
-                      ))}
-                    </div>
-                    {sec.actionPoints && sec.actionPoints.length > 0 && (
-                      <div className="pt-3 border-t border-[#2E353D] space-y-1.5">
-                        <div className="text-xs font-mono-metric uppercase text-[#1BB1E7] font-bold">
-                          IRONCLAD FIELD ACTIONS:
-                        </div>
-                        <ul className="space-y-1 text-xs text-emerald-300">
-                          {sec.actionPoints.map((ap, j) => (
-                            <li key={j} className="flex items-start gap-2">
-                              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                              <span>{ap}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
 
-                {/* Interactive CBT Trigger Worksheet inside Playbook 4 */}
+                {/* Interactive HALT & CBT Worksheet inside Playbook 4 */}
                 {activePlaybook.isInteractiveCBT && (
                   <form
                     onSubmit={handleCBTFormSubmit}
-                    className="forge-card-sky rounded-xl p-5 space-y-4"
+                    className="iron-surface p-5 space-y-4"
                   >
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
-                        <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] font-bold">
-                          LIVE INTERACTIVE WORKSHEET
+                        <span className="text-xs font-semibold text-[#7A263A]">
+                          Interactive worksheet
                         </span>
-                        <h3 className="font-display text-lg font-bold text-[#F8F9FA] uppercase">
-                          LOG A TRIGGER & GENERATE YOUR BALANCED REFRAME
+                        <h3 className="font-display text-lg font-bold text-[#121518]">
+                          Log a trigger and generate a balanced reframe
                         </h3>
                       </div>
                       <button
                         type="button"
                         onClick={handleAutoGenerateReframe}
-                        className="py-1.5 px-3 rounded-lg bg-[#1BB1E7] text-[#121518] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                        className="iron-btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Auto-Generate Chef CBT Reframe
+                        <Sparkles className="w-3.5 h-3.5 text-[#7A263A]" />
+                        Suggest balanced reframe
                       </button>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block">
-                        1. Active HALT Vulnerability States (Select all that apply)
-                      </label>
+                      <span className="text-xs font-medium text-[#334155] block">
+                        1. Active HALT states
+                      </span>
                       <div className="grid grid-cols-4 gap-2">
                         {(['Hungry', 'Angry', 'Lonely', 'Tired'] as const).map(
                           (st) => {
@@ -460,10 +513,11 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                                 key={st}
                                 type="button"
                                 onClick={() => toggleHaltState(st)}
-                                className={`py-2 rounded-lg font-display text-xs uppercase border transition cursor-pointer ${
+                                aria-pressed={active}
+                                className={`py-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
                                   active
-                                    ? 'bg-[#7A263A] text-white border-[#1BB1E7]'
-                                    : 'bg-[#121518] text-[#94A3B8] border-[#2E353D]'
+                                    ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                                    : 'bg-white text-[#334155] border-[#CBD5E1]'
                                 }`}
                               >
                                 {st}
@@ -476,21 +530,21 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                          2. Trigger Situation (Where are you / What happened?)
+                        <label className="text-xs font-medium text-[#334155] block mb-1">
+                          2. Trigger situation
                         </label>
                         <input
                           type="text"
                           value={triggerSituation}
                           onChange={(e) => setTriggerSituation(e.target.value)}
-                          placeholder="e.g., Finished 12-hour Friday service, lads going to the pub"
-                          className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                          placeholder="e.g., Finished 12-hour Friday service, team going to the pub"
+                          className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                         />
                       </div>
 
                       <div>
-                        <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                          3. Craving Intensity ({cravingRating}/10)
+                        <label className="text-xs font-medium text-[#334155] block mb-1">
+                          3. Craving intensity ({cravingRating}/10)
                         </label>
                         <input
                           type="range"
@@ -507,105 +561,105 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                          4. Automatic Permissive Thought
+                        <label className="text-xs font-medium text-[#334155] block mb-1">
+                          4. Automatic thought
                         </label>
                         <input
                           type="text"
                           value={automaticThought}
                           onChange={(e) => setAutomaticThought(e.target.value)}
                           placeholder="e.g., 'I deserve two pints to switch my head off'"
-                          className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                          className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                         />
                       </div>
 
                       <div>
-                        <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                          5. Cognitive Distortion Trap
+                        <label className="text-xs font-medium text-[#334155] block mb-1">
+                          5. Thinking pattern
                         </label>
                         <select
                           value={cognitiveDistortion}
                           onChange={(e) =>
                             setCognitiveDistortion(e.target.value)
                           }
-                          className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                          className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                         >
                           <option>
-                            Short-Term Magnification ("Just one or two pints to switch off")
+                            Short-term magnification ("Just one or two pints to switch off")
                           </option>
                           <option>
-                            All-or-Nothing Thinking ("Today was ruined anyway")
+                            All-or-nothing thinking ("Today was ruined anyway")
                           </option>
                           <option>
-                            Emotional Reasoning ("I feel stressed so I need a sedative")
-                          </option>
-                          <option>
-                            Reward Fallacy ("I grafted hard so poison is my reward")
+                            Emotional reasoning ("I feel stressed so I need a drink")
                           </option>
                         </select>
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-xs font-mono-metric uppercase text-[#1BB1E7] block mb-1">
-                        6. Balanced Ironclad Reframe (Prefrontal Cortex Truth)
+                      <label className="text-xs font-medium text-[#334155] block mb-1">
+                        6. Balanced reframe
                       </label>
                       <textarea
                         rows={2}
                         value={ironcladReframe}
                         onChange={(e) => setIroncladReframe(e.target.value)}
-                        placeholder="Click 'Auto-Generate Chef CBT Reframe' above or write your grounded truth..."
-                        className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                        placeholder="Write your grounded reframe..."
+                        className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                        7. Immediate Replacement Action Taken
+                      <label className="text-xs font-medium text-[#334155] block mb-1">
+                        7. Practical next step
                       </label>
                       <input
                         type="text"
                         value={actionTaken}
                         onChange={(e) => setActionTaken(e.target.value)}
-                        placeholder="e.g., Drank Witching Hour ginger spritz & cooked 12-min steak skillet"
-                        className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                        placeholder="e.g., Drank ginger spritz & cooked 12-minute steak skillet"
+                        className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full py-3 rounded-xl bg-[#7A263A] hover:bg-[#9E334D] text-white font-display text-sm uppercase tracking-wider cursor-pointer"
+                      className="iron-btn-primary w-full py-2.5 text-xs cursor-pointer"
                     >
-                      SAVE CBT REFRAME TO MY IRONCLAD JOURNAL
+                      Save reframe to worksheet archive
                     </button>
 
                     {cbtSavedBanner && (
-                      <div className="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" /> Trigger reframe saved to your Playbook 4 Journal Archive!
+                      <div
+                        role="status"
+                        className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Saved to your Playbook 4 worksheet archive.
                       </div>
                     )}
                   </form>
                 )}
 
-                {/* DocuSeal Policy Sign-Off Hook inside Playbook 5 */}
+                {/* DocuSeal Policy Hook inside Playbook 5 */}
                 {activePlaybook.isB2BPolicy && (
-                  <div className="forge-card-sky rounded-xl p-5 space-y-3">
-                    <div className="flex items-center gap-2 text-xs font-mono-metric uppercase text-[#1BB1E7] font-bold">
-                      <FileSignature className="w-4 h-4" /> DOCUSEAL WORKPLACE CHARTER ADOPTION HOOK
+                  <div className="iron-surface p-5 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#7A263A]">
+                      <FileSignature className="w-4 h-4" /> DocuSeal workplace charter sign-off
                     </div>
-                    <h3 className="font-display text-lg font-bold text-[#F8F9FA] uppercase">
-                      DIGITALLY SIGN & DEPLOY THIS POLICY FOR YOUR UK TEAM
+                    <h3 className="font-display text-lg font-bold text-[#121518]">
+                      Deploy this policy for your UK team
                     </h3>
-                    <p className="text-xs text-[#94A3B8]">
-                      Enter your company or venue name below to trigger a DocuSeal workplace charter sign-off pack and log it to your n8n / Twenty CRM pipeline.
+                    <p className="text-xs text-[#475569]">
+                      Enter your company or venue name below to trigger a DocuSeal workplace charter sign-off pack.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         type="text"
                         value={b2bCompanySignName}
                         onChange={(e) => setB2bCompanySignName(e.target.value)}
-                        placeholder="Your UK Company / Kitchen / Site Name"
-                        className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                        placeholder="Company or venue name"
+                        className="flex-1 px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                       />
                       <button
                         type="button"
@@ -613,16 +667,16 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                           onTriggerDocuSealWebhook(b2bCompanySignName);
                           setDocuSealSignedBanner(true);
                         }}
-                        className="py-2.5 px-5 rounded-xl bg-[#1BB1E7] text-[#121518] font-display text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+                        className="iron-btn-primary py-2 px-5 text-xs flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <FileSignature className="w-4 h-4" />
-                        Launch DocuSeal Charter Sign-Off
+                        Launch DocuSeal charter sign-off
                       </button>
                     </div>
                     {docuSealSignedBanner && (
-                      <div className="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" /> DocuSeal Workplace Policy Sign-Off session initialized for{' '}
-                        <strong>{b2bCompanySignName}</strong> & webhook dispatched to n8n!
+                      <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700" /> DocuSeal sign-off initialized for{' '}
+                        <strong>{b2bCompanySignName}</strong>.
                       </div>
                     )}
                   </div>

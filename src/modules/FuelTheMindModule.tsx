@@ -10,7 +10,7 @@ import {
   ShoppingCart,
   Trash2,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RECIPES } from '../data/ironcladData';
 import {
   Recipe,
@@ -57,6 +57,12 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
   const [copiedShopBanner, setCopiedShopBanner] = useState<boolean>(false);
   const [addedRecipeBanner, setAddedRecipeBanner] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (highlightedRecipeId) {
+      setExpandedRecipeId(highlightedRecipeId);
+    }
+  }, [highlightedRecipeId]);
+
   const filteredRecipes =
     selectedCategory === 'All'
       ? RECIPES
@@ -69,14 +75,14 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
 
   const handleCopyListToKeep = () => {
     const lines = [
-      '=== IRONCLAD MINDSET: £40 MOOD-FOOD SUPERMARKET LIST (ALDI / TESCO) ===',
-      `Estimated Weekly Total: £${totalBasketGBP.toFixed(2)}`,
+      'Ironclad Mindset: £40 weekly supermarket list (Aldi / Tesco)',
+      `Estimated weekly total: £${totalBasketGBP.toFixed(2)}`,
       '',
     ];
     AISLES.forEach((aisle) => {
       const items = shoppingList.filter((i) => i.aisle === aisle);
       if (items.length > 0) {
-        lines.push(`[${aisle.toUpperCase()}]`);
+        lines.push(`[${aisle}]`);
         items.forEach((item) => {
           lines.push(
             `${item.checked ? '[x]' : '[ ]'} ${item.name} (${item.quantity}) — £${item.estimatedPriceGBP.toFixed(2)}`
@@ -98,32 +104,33 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header & Category Filter Pills */}
-      <div className="forge-card rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header & Category Filters */}
+      <section className="iron-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] flex items-center gap-1.5">
-            <ChefHat className="w-4 h-4" /> MEALIE-STYLE GUT-BRAIN NUTRITION & £40 BUDGET HUB
+          <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
+            <ChefHat className="w-4 h-4" /> Practical nutrition & £40 weekly budget
           </span>
-          <h1 className="font-display text-2xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-            FUEL THE MIND — CHEF-BUILT RECOVERY PASS
+          <h1 className="font-display text-2xl font-bold text-[#121518] mt-0.5">
+            Fuel the Mind
           </h1>
-          <p className="text-xs sm:text-sm text-[#94A3B8] mt-1">
-            Built from a working kitchen pass: stabilize blood glucose, replenish B-vitamins & magnesium, and rebuild dopamine on £40/week.
+          <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
+            Chef-built 15-minute shift meals and alcohol-free 5pm swaps designed to steady energy on £40 a week.
           </p>
         </div>
 
-        {/* Category Filter Tabs */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Recipe categories">
           {CATEGORIES.map((cat) => {
             const active = selectedCategory === cat;
             return (
               <button
                 key={cat}
+                type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition border cursor-pointer ${
+                aria-pressed={active}
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition border cursor-pointer ${
                   active
-                    ? 'bg-[#7A263A] text-white border-[#1BB1E7] shadow-md'
-                    : 'bg-[#121518] text-[#94A3B8] border-[#2E353D] hover:text-white'
+                    ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                    : 'bg-white text-[#334155] border-[#CBD5E1] hover:bg-[#F8FAFC]'
                 }`}
               >
                 {cat}
@@ -131,29 +138,29 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
             );
           })}
         </div>
-      </div>
+      </section>
 
       {addedRecipeBanner && (
-        <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" /> Added ingredients from{' '}
-          <strong>{addedRecipeBanner}</strong> to your £40 Supermarket Checklist!
+        <div
+          role="status"
+          className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2"
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Added ingredients from{' '}
+          <strong>{addedRecipeBanner}</strong> to your £40 supermarket checklist.
         </div>
       )}
 
-      {/* Main Grid: Recipes (Left 7 cols) + Interactive £40 Supermarket Shopping List (Right 5 cols) */}
+      {/* Main Grid: Recipes + Shopping List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Recipes List */}
         <div className="lg:col-span-7 space-y-4">
           {filteredRecipes.map((recipe) => {
             const isExpanded = expandedRecipeId === recipe.id;
             return (
-              <div
+              <article
                 key={recipe.id}
-                className={`rounded-2xl transition overflow-hidden ${
-                  isExpanded ? 'forge-card-claret' : 'forge-card'
-                }`}
+                id={recipe.id}
+                className="iron-card overflow-hidden transition"
               >
-                {/* Recipe Summary Header */}
                 <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div
                     className="space-y-1.5 cursor-pointer flex-1"
@@ -161,111 +168,94 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                       setExpandedRecipeId(isExpanded ? '' : recipe.id)
                     }
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      {recipe.categories.map((cat) => (
-                        <span
-                          key={cat}
-                          className="text-[10px] font-mono-metric uppercase px-2 py-0.5 rounded bg-[#121518] text-[#1BB1E7] border border-[#1BB1E7]/30"
-                        >
-                          {cat}
-                        </span>
-                      ))}
-                      <span className="text-xs font-mono-metric text-[#94A3B8] flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-[#1BB1E7]" /> {recipe.prepTimeMins} mins
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#475569]">
+                      <span className="font-mono-metric text-[#121518] font-semibold flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-[#7A263A]" /> {recipe.prepTimeMins} mins
                       </span>
-                      <span className="text-xs font-mono-metric font-bold text-emerald-400">
-                        £{recipe.costPerServingGBP.toFixed(2)} / serving
+                      <span>•</span>
+                      <span className="font-mono-metric font-semibold text-[#7A263A]">
+                        £{recipe.costPerServingGBP.toFixed(2)} per serving
                       </span>
                     </div>
 
-                    <h2 className="font-display text-lg sm:text-xl font-bold text-[#F8F9FA] uppercase">
+                    <h2 className="font-display text-lg sm:text-xl font-bold text-[#121518]">
                       {recipe.title}
                     </h2>
-                    <p className="text-xs text-[#94A3B8]">{recipe.subtitle}</p>
+                    <p className="text-xs text-[#475569]">{recipe.subtitle}</p>
                   </div>
 
                   <div className="flex sm:flex-col items-stretch sm:items-end gap-2">
                     <button
+                      type="button"
                       onClick={() => handleAddRecipeClick(recipe)}
-                      className="py-2 px-3.5 rounded-xl bg-[#1BB1E7] hover:bg-[#1BB1E7]/90 text-[#121518] font-display text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                      className="iron-btn-primary py-2 px-3.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
-                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                      Add Ingredients to Shop
+                      <Plus className="w-3.5 h-3.5" />
+                      Add ingredients to shop
                     </button>
                     <button
+                      type="button"
                       onClick={() =>
                         setExpandedRecipeId(isExpanded ? '' : recipe.id)
                       }
-                      className="py-1.5 px-3 rounded-lg bg-[#121518] border border-[#2E353D] text-[11px] font-mono-metric text-[#F8F9FA] hover:border-[#1BB1E7] transition cursor-pointer"
+                      className="iron-btn-secondary py-1.5 px-3 text-xs cursor-pointer"
                     >
-                      {isExpanded ? 'Hide Pass Method' : 'View Full Recipe & Macros'}
+                      {isExpanded ? 'Hide method' : 'View recipe & macros'}
                     </button>
                   </div>
                 </div>
 
-                {/* Expanded Recipe Details */}
                 {isExpanded && (
-                  <div className="px-5 pb-5 pt-2 border-t border-[#2E353D] space-y-4">
-                    {/* Macros Bar */}
-                    <div className="grid grid-cols-4 gap-2 bg-[#121518] border border-[#2E353D] rounded-xl p-3 text-center">
+                  <div className="px-5 pb-5 pt-3 border-t border-[#E2E8F0] space-y-4 bg-[#F8FAFC]">
+                    <div className="grid grid-cols-4 gap-2 bg-white border border-[#E2E8F0] rounded-xl p-3 text-center">
                       <div>
-                        <div className="text-[10px] font-mono-metric text-[#94A3B8] uppercase">
-                          CALORIES
-                        </div>
-                        <div className="font-mono-metric text-sm font-bold text-[#F8F9FA]">
+                        <div className="text-[11px] text-[#475569]">Calories</div>
+                        <div className="font-mono-metric text-sm font-bold text-[#121518]">
                           {recipe.macros.calories} kcal
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-mono-metric text-[#94A3B8] uppercase">
-                          PROTEIN
-                        </div>
-                        <div className="font-mono-metric text-sm font-bold text-[#1BB1E7]">
+                        <div className="text-[11px] text-[#475569]">Protein</div>
+                        <div className="font-mono-metric text-sm font-bold text-[#7A263A]">
                           {recipe.macros.proteinG}g
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-mono-metric text-[#94A3B8] uppercase">
-                          COMPLEX CARBS
-                        </div>
-                        <div className="font-mono-metric text-sm font-bold text-[#F8F9FA]">
+                        <div className="text-[11px] text-[#475569]">Carbs</div>
+                        <div className="font-mono-metric text-sm font-bold text-[#121518]">
                           {recipe.macros.carbsG}g
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-mono-metric text-[#94A3B8] uppercase">
-                          GOOD FATS
-                        </div>
-                        <div className="font-mono-metric text-sm font-bold text-emerald-400">
+                        <div className="text-[11px] text-[#475569]">Fats</div>
+                        <div className="font-mono-metric text-sm font-bold text-[#121518]">
                           {recipe.macros.fatsG}g
                         </div>
                       </div>
                     </div>
 
-                    {/* Brain Benefit Callout */}
-                    <div className="bg-[#121518]/90 border-l-4 border-[#1BB1E7] rounded-r-xl p-3.5 space-y-1">
-                      <div className="text-xs font-mono-metric uppercase text-[#1BB1E7] font-bold flex items-center gap-1.5">
-                        <Brain className="w-4 h-4" /> BRAIN & GUT BENEFIT: {recipe.brainBenefitTitle}
+                    <div className="bg-white border-l-4 border-[#7A263A] rounded-r-xl p-3.5 border border-[#E2E8F0] space-y-1">
+                      <div className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
+                        <Brain className="w-4 h-4" /> Why it helps: {recipe.brainBenefitTitle}
                       </div>
-                      <p className="text-xs text-[#F8F9FA]/90 leading-relaxed">
+                      <p className="text-xs text-[#334155] leading-relaxed">
                         {recipe.brainBenefitDetail}
                       </p>
                     </div>
 
-                    {/* Ingredients + Method Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                      <div className="md:col-span-5 bg-[#121518] border border-[#2E353D] rounded-xl p-3.5 space-y-2">
-                        <div className="text-xs font-mono-metric uppercase text-[#94A3B8] font-bold">
-                          INGREDIENTS (ALDI / TESCO EST.)
+                      <div className="md:col-span-5 bg-white border border-[#E2E8F0] rounded-xl p-3.5 space-y-2">
+                        <div className="text-xs font-semibold text-[#121518]">
+                          Ingredients (Aldi / Tesco est.)
                         </div>
                         <ul className="space-y-1.5 text-xs">
                           {recipe.ingredients.map((ing, i) => (
                             <li
                               key={i}
-                              className="flex items-center justify-between gap-2 py-1 border-b border-[#2E353D]/50 last:border-none"
+                              className="flex items-center justify-between gap-2 py-1 border-b border-[#E2E8F0] last:border-none"
                             >
-                              <span className="text-[#F8F9FA]">{ing.name}</span>
-                              <span className="font-mono-metric text-emerald-400 whitespace-nowrap">
+                              <span className="text-[#334155]">{ing.name}</span>
+                              <span className="font-mono-metric text-[#121518] font-medium whitespace-nowrap">
                                 £{ing.estimatedPriceGBP.toFixed(2)}
                               </span>
                             </li>
@@ -273,60 +263,60 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                         </ul>
                       </div>
 
-                      <div className="md:col-span-7 bg-[#121518] border border-[#2E353D] rounded-xl p-3.5 space-y-2">
-                        <div className="text-xs font-mono-metric uppercase text-[#94A3B8] font-bold">
-                          CHEF’S PASS METHOD
+                      <div className="md:col-span-7 bg-white border border-[#E2E8F0] rounded-xl p-3.5 space-y-2">
+                        <div className="text-xs font-semibold text-[#121518]">
+                          Step-by-step method
                         </div>
-                        <ol className="space-y-2 text-xs text-[#F8F9FA]/95 list-decimal list-inside leading-relaxed">
+                        <ol className="space-y-2 text-xs text-[#334155] list-decimal list-inside leading-relaxed">
                           {recipe.method.map((step, idx) => (
                             <li key={idx}>{step}</li>
                           ))}
                         </ol>
-                        <div className="mt-3 pt-2 border-t border-[#2E353D] text-xs text-[#1BB1E7]">
+                        <div className="mt-3 pt-2 border-t border-[#E2E8F0] text-xs text-[#7A263A]">
                           <Flame className="w-3.5 h-3.5 inline mr-1" />
-                          <strong>Head Chef Tip:</strong> {recipe.chefTip}
+                          <strong>Chef tip:</strong> {recipe.chefTip}
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
-              </div>
+              </article>
             );
           })}
         </div>
 
-        {/* Interactive £40 Weekly Supermarket Shopping List */}
-        <div className="lg:col-span-5 forge-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-5 h-fit sticky top-20">
+        {/* £40 Weekly Supermarket Checklist */}
+        <aside className="lg:col-span-5 iron-card p-5 sm:p-6 flex flex-col justify-between space-y-5 h-fit sticky top-20">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] flex items-center gap-1.5">
-                <ShoppingCart className="w-4 h-4" /> £40 WEEKLY SUPERMARKET CHECKLIST
-              </span>
+              <h2 className="font-display text-lg font-bold text-[#121518] flex items-center gap-2">
+                <ShoppingCart className="w-4 h-4 text-[#7A263A]" /> £40 weekly shopping list
+              </h2>
               <button
+                type="button"
                 onClick={onResetDefaultShop}
-                className="text-[11px] font-mono-metric text-[#94A3B8] hover:text-[#F8F9FA] flex items-center gap-1 cursor-pointer"
-                title="Reset to default £40 Chef Basket"
+                className="text-xs text-[#475569] hover:text-[#121518] flex items-center gap-1 cursor-pointer"
               >
-                <RotateCcw className="w-3 h-3" /> Reset £40 Basket
+                <RotateCcw className="w-3 h-3" /> Reset basket
               </button>
             </div>
 
-            <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-4 flex items-center justify-between">
+            <div className="iron-surface p-4 flex items-center justify-between">
               <div>
-                <div className="text-xs text-[#94A3B8]">Estimated Aldi / Tesco Basket</div>
-                <div className="font-mono-metric text-2xl font-bold text-emerald-400">
+                <div className="text-xs text-[#475569]">Estimated basket total</div>
+                <div className="font-mono-metric text-2xl font-bold text-[#121518]">
                   £{totalBasketGBP.toFixed(2)}{' '}
-                  <span className="text-xs font-normal text-[#94A3B8]">/ £40.00 target</span>
+                  <span className="text-xs font-normal text-[#475569]">/ £40.00 target</span>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs font-mono-metric text-[#1BB1E7]">
-                  {shoppingList.filter((i) => i.checked).length}/{shoppingList.length} in Trolley
+                <div className="text-xs font-medium text-[#7A263A]">
+                  {shoppingList.filter((i) => i.checked).length} of {shoppingList.length} ticked
                 </div>
-                <div className="w-28 h-2 bg-[#1E2328] rounded-full overflow-hidden mt-1.5">
+                <div className="w-28 h-2 bg-[#E2E8F0] rounded-full overflow-hidden mt-1.5">
                   <div
                     className={`h-full ${
-                      totalBasketGBP <= 40 ? 'bg-[#1BB1E7]' : 'bg-[#E63946]'
+                      totalBasketGBP <= 40 ? 'bg-[#7A263A]' : 'bg-[#DC2626]'
                     }`}
                     style={{
                       width: `${Math.min(100, (totalBasketGBP / 40) * 100)}%`,
@@ -336,16 +326,15 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
               </div>
             </div>
 
-            {/* Categorized Supermarket Aisles */}
-            <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[440px] overflow-y-auto pr-1">
               {AISLES.map((aisle) => {
                 const items = shoppingList.filter((i) => i.aisle === aisle);
                 if (items.length === 0) return null;
                 return (
                   <div key={aisle} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-mono-metric uppercase text-[#1BB1E7] px-1">
-                      <span>{aisle} Aisle</span>
-                      <span>
+                    <div className="flex items-center justify-between text-xs font-semibold text-[#334155] px-1">
+                      <span>{aisle}</span>
+                      <span className="font-mono-metric">
                         £
                         {items
                           .reduce((s, x) => s + x.estimatedPriceGBP, 0)
@@ -355,10 +344,10 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                     {items.map((item) => (
                       <div
                         key={item.id}
-                        className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border text-xs transition ${
+                        className={`flex items-center justify-between gap-2 p-2.5 rounded-lg border text-xs transition ${
                           item.checked
-                            ? 'bg-[#7A263A]/20 border-[#1BB1E7]/40 text-[#94A3B8]'
-                            : 'bg-[#121518] border-[#2E353D] text-[#F8F9FA]'
+                            ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569]'
+                            : 'bg-white border-[#CBD5E1] text-[#121518]'
                         }`}
                       >
                         <label
@@ -368,8 +357,8 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                           <div
                             className={`w-4 h-4 rounded flex items-center justify-center border ${
                               item.checked
-                                ? 'bg-[#1BB1E7] border-[#1BB1E7] text-[#121518]'
-                                : 'border-[#94A3B8]'
+                                ? 'bg-[#7A263A] border-[#7A263A] text-white'
+                                : 'border-[#94A3B8] bg-white'
                             }`}
                           >
                             {item.checked && <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />}
@@ -378,7 +367,7 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                             <span className={item.checked ? 'line-through' : 'font-medium'}>
                               {item.name}
                             </span>
-                            <span className="text-[10px] text-[#94A3B8] block">
+                            <span className="text-[11px] text-[#475569] block">
                               {item.quantity}
                               {item.fromRecipe ? ` • ${item.fromRecipe}` : ''}
                             </span>
@@ -386,13 +375,14 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                         </label>
 
                         <div className="flex items-center gap-2">
-                          <span className="font-mono-metric text-emerald-400 font-semibold">
+                          <span className="font-mono-metric font-semibold text-[#121518]">
                             £{item.estimatedPriceGBP.toFixed(2)}
                           </span>
                           <button
+                            type="button"
                             onClick={() => onRemoveShopItem(item.id)}
-                            className="p-1 text-[#94A3B8] hover:text-[#E63946] transition cursor-pointer"
-                            title="Remove item"
+                            className="p-1 text-[#475569] hover:text-[#DC2626] transition cursor-pointer"
+                            aria-label={`Remove ${item.name}`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -405,19 +395,20 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
             </div>
           </div>
 
-          <div className="space-y-2 pt-2 border-t border-[#2E353D]">
+          <div className="pt-2 border-t border-[#E2E8F0]">
             <button
               id="copy-shopping-list-btn"
+              type="button"
               onClick={handleCopyListToKeep}
-              className="w-full py-3 px-4 rounded-xl bg-[#7A263A] hover:bg-[#9E334D] text-white font-display text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition cursor-pointer"
+              className="iron-btn-primary w-full py-2.5 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Copy className="w-4 h-4 text-[#1BB1E7]" />
+              <Copy className="w-4 h-4" />
               {copiedShopBanner
-                ? 'COPIED TO CLIPBOARD FOR GOOGLE KEEP / NOTES!'
-                : 'COPY LIST TO GOOGLE KEEP / NOTES'}
+                ? 'Copied list to clipboard'
+                : 'Copy list to Google Keep / Notes'}
             </button>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );

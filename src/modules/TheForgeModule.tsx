@@ -1,87 +1,243 @@
 import confetti from 'canvas-confetti';
-import { motion } from 'framer-motion';
 import {
+  Anchor,
   Award,
   Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Coins,
+  Compass,
   Copy,
   Crown,
+  Download,
   Flame,
   Hammer,
+  Lock,
   Plus,
+  RotateCcw,
   Shield,
   Sparkles,
-  TrendingUp,
+  Star,
+  Trash2,
+  Upload,
   Zap,
 } from 'lucide-react';
-import React, { useState } from 'react';
-import { FOUNDER_MANIFESTO, MILESTONE_BADGES } from '../data/ironcladData';
-import { DailyForgeLog, NonNegotiableTask } from '../types/ironclad';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { FOUNDER_MANIFESTO } from '../data/ironcladData';
+import {
+  build28DayHeatmapFromDatedEntries,
+  DatedCheckIn,
+} from '../db/checkinsDb';
+import {
+  EarnedBadgeRecord,
+  evaluateMilestoneProgress,
+  IronMilestoneWithState,
+} from '../services/milestones';
+import { NonNegotiableTask } from '../types/ironclad';
 
 interface TheForgeModuleProps {
   streakDays: number;
+  earnedBadges: EarnedBadgeRecord[];
   onIncrementStreak: () => void;
   onSetStreakDays: (days: number) => void;
+  onResetStreakKeepBadges: () => void;
   weeklySpendGBP: number;
   onChangeWeeklySpend: (spend: number) => void;
   tasks: NonNegotiableTask[];
   onToggleTask: (id: string) => void;
   onAddCustomTask: (label: string) => void;
-  forgeLogs: DailyForgeLog[];
-  onLogDailyForge: (mood: number, sleep: number, craving: number, notes: string) => void;
-  heatmapDays: boolean[];
-  onToggleHeatmapDay: (index: number) => void;
+  checkIns: DatedCheckIn[];
+  onSaveCheckIn: (
+    input: Omit<DatedCheckIn, 'updatedAt'>
+  ) => Promise<void>;
+  onDeleteCheckIn: (date: string) => Promise<void>;
+  onClearAllCheckIns: () => Promise<void>;
+  onExportCheckIns: () => Promise<string>;
+  onRestoreCheckIns: (jsonText: string) => Promise<{ restoredCount: number }>;
 }
+
+const TRIGGER_SUGGESTIONS = [
+  'After-shift fatigue',
+  'Friday 5pm transition',
+  'Pub or social invite',
+  'Work stress',
+  'Quiet evening alone',
+];
+
+const HELPED_SUGGESTIONS = [
+  'Cooked a proper meal',
+  'Craving Reset breathing',
+  '0.0% drink swap',
+  '15-minute walk outside',
+  'Spoke with Cornerman',
+];
 
 export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
   streakDays,
+  earnedBadges,
   onIncrementStreak,
+  onResetStreakKeepBadges,
   weeklySpendGBP,
   onChangeWeeklySpend,
   tasks,
   onToggleTask,
   onAddCustomTask,
-  forgeLogs,
-  onLogDailyForge,
-  heatmapDays,
-  onToggleHeatmapDay,
+  checkIns,
+  onSaveCheckIn,
+  onDeleteCheckIn,
+  onClearAllCheckIns,
+  onExportCheckIns,
+  onRestoreCheckIns,
 }) => {
-  const [manifestoExpanded, setManifestoExpanded] = useState<boolean>(true);
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  // Check-in form state
+  const [selectedDate, setSelectedDate] = useState<string>(todayISO);
+  const [alcoholFree, setAlcoholFree] = useState<boolean>(true);
+  const [cravingIntensity, setCravingIntensity] = useState<number>(2);
+  const [mood, setMood] = useState<number>(8);
+  const [trigger, setTrigger] = useState<string>('');
+  const [whatHelped, setWhatHelped] = useState<string>('');
+  const [privateNote, setPrivateNote] = useState<string>('');
+  const [newTaskText, setNewTaskText] = useState<string>('');
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  // Secondary Founder Story state (collapsed by default)
+  const [manifestoExpanded, setManifestoExpanded] = useState<boolean>(false);
   const [copiedManifesto, setCopiedManifesto] = useState<boolean>(false);
 
-  // Daily Check-in Sliders
-  const [mood, setMood] = useState<number>(8);
-  const [sleep, setSleep] = useState<number>(8);
-  const [craving, setCraving] = useState<number>(2);
-  const [shiftNote, setShiftNote] = useState<string>('');
-  const [newTaskText, setNewTaskText] = useState<string>('');
-  const [loggedSuccess, setLoggedSuccess] = useState<boolean>(false);
+  // Backup / Restore state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const checkInFormRef = useRef<HTMLFormElement>(null);
 
-  const moneySavedGBP = ((streakDays / 7) * weeklySpendGBP).toFixed(2);
-  const unitsAvoided = Math.round(streakDays * 4.2);
-  const emptyCaloriesAvoided = (streakDays * 820).toLocaleString();
+  // Evaluate all 12 Iron Milestones
+  const milestoneSummary = useMemo(
+    () => evaluateMilestoneProgress(streakDays, earnedBadges),
+    [streakDays, earnedBadges]
+  );
 
-  const handleForgePlusOne = () => {
-    onIncrementStreak();
-    try {
-      confetti({
-        particleCount: 70,
-        spread: 65,
-        origin: { y: 0.6 },
-        colors: ['#7A263A', '#1BB1E7', '#F8F9FA'],
-      });
-    } catch {
-      // Fallback if canvas-confetti is blocked in headless env
+  // Generate 28-day heatmap strictly from actual dated entries
+  const heatmapCells = useMemo(
+    () => build28DayHeatmapFromDatedEntries(checkIns, todayISO),
+    [checkIns, todayISO]
+  );
+
+  // Trend chart data from logged dated check-ins (sorted chronologically, last 14 entries)
+  const trendData = useMemo(() => {
+    return [...checkIns]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-14)
+      .map((entry) => ({
+        dateLabel: entry.date.slice(5), // MM-DD
+        fullDate: entry.date,
+        craving:
+          typeof entry.cravingIntensity === 'number'
+            ? entry.cravingIntensity
+            : 0,
+        mood: typeof entry.mood === 'number' ? entry.mood : null,
+      }));
+  }, [checkIns]);
+
+  const moneySavedGBP = ((streakDays / 7) * weeklySpendGBP).toFixed(0);
+
+  const loadDateIntoForm = (dateISO: string) => {
+    setSelectedDate(dateISO);
+    const existing = checkIns.find((c) => c.date === dateISO);
+    if (existing) {
+      setAlcoholFree(existing.alcoholFree);
+      setCravingIntensity(existing.cravingIntensity ?? 2);
+      setMood(existing.mood ?? 8);
+      setTrigger(existing.trigger || '');
+      setWhatHelped(existing.whatHelped || '');
+      setPrivateNote(existing.privateNote || '');
+    } else {
+      setAlcoholFree(true);
+      setCravingIntensity(2);
+      setMood(8);
+      setTrigger('');
+      setWhatHelped('');
+      setPrivateNote('');
     }
   };
 
-  const handleCopyScript = () => {
-    navigator.clipboard.writeText(FOUNDER_MANIFESTO.socialLaunchScript);
-    setCopiedManifesto(true);
-    setTimeout(() => setCopiedManifesto(false), 2500);
+  const handleCheckInSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const isNewTodayCheckIn =
+      selectedDate === todayISO &&
+      !checkIns.some((c) => c.date === todayISO);
+
+    await onSaveCheckIn({
+      date: selectedDate,
+      alcoholFree,
+      cravingIntensity,
+      mood,
+      trigger: trigger.trim() || undefined,
+      whatHelped: whatHelped.trim() || undefined,
+      privateNote: privateNote.trim() || undefined,
+      completedTasks: tasks.filter((t) => t.completed).length,
+    });
+
+    if (!alcoholFree && selectedDate === todayISO) {
+      onResetStreakKeepBadges();
+      setSavedNotice(
+        `Check-in saved for ${selectedDate}. Active streak reset to Day 0 while keeping your ${milestoneSummary.unlockedCount} earned milestones safe.`
+      );
+    } else if (isNewTodayCheckIn && alcoholFree) {
+      onIncrementStreak();
+      setSavedNotice(`Logged ${selectedDate} in The Forge and added +1 alcohol-free day.`);
+      try {
+        confetti({
+          particleCount: 45,
+          spread: 55,
+          origin: { y: 0.65 },
+          colors: ['#7A263A', '#0284C7', '#121518'],
+        });
+      } catch {
+        // Ignore in headless environment
+      }
+    } else {
+      setSavedNotice(`Saved check-in for ${selectedDate}.`);
+    }
+
+    setTimeout(() => setSavedNotice(null), 4000);
+  };
+
+  const handleExportClick = async () => {
+    const json = await onExportCheckIns();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ironclad-checkins-${todayISO}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSavedNotice('Exported on-device check-ins backup file.');
+    setTimeout(() => setSavedNotice(null), 3000);
+  };
+
+  const handleRestoreFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const { restoredCount } = await onRestoreCheckIns(text);
+      setSavedNotice(`Restored ${restoredCount} dated check-ins without duplicates.`);
+      setTimeout(() => setSavedNotice(null), 4000);
+    } catch {
+      setSavedNotice('Could not restore file—please check it is a valid Ironclad JSON backup.');
+    }
+    e.target.value = '';
   };
 
   const handleAddTaskSubmit = (e: React.FormEvent) => {
@@ -91,335 +247,409 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
     setNewTaskText('');
   };
 
-  const handleLogSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onLogDailyForge(mood, sleep, craving, shiftNote);
-    setShiftNote('');
-    setLoggedSuccess(true);
-    setTimeout(() => setLoggedSuccess(false), 3000);
+  const handleCopyScript = () => {
+    navigator.clipboard.writeText(FOUNDER_MANIFESTO.socialLaunchScript);
+    setCopiedManifesto(true);
+    setTimeout(() => setCopiedManifesto(false), 2500);
   };
 
-  const renderBadgeIcon = (iconName: string, unlocked: boolean) => {
-    const cls = `w-5 h-5 ${unlocked ? 'text-[#1BB1E7]' : 'text-[#94A3B8]/50'}`;
-    switch (iconName) {
+  const renderBadgeIcon = (badge: IronMilestoneWithState) => {
+    const cls =
+      badge.status === 'earned'
+        ? 'w-4 h-4 text-[#7A263A]'
+        : badge.status === 'next'
+        ? 'w-4 h-4 text-[#0284C7]'
+        : 'w-4 h-4 text-[#475569]';
+    switch (badge.iconName) {
       case 'Flame':
         return <Flame className={cls} />;
       case 'Shield':
         return <Shield className={cls} />;
-      case 'Hammer':
-        return <Hammer className={cls} />;
+      case 'Anchor':
+        return <Anchor className={cls} />;
+      case 'Compass':
+        return <Compass className={cls} />;
+      case 'Zap':
+        return <Zap className={cls} />;
+      case 'CheckCircle2':
+        return <CheckCircle2 className={cls} />;
       case 'Award':
         return <Award className={cls} />;
+      case 'Hammer':
+        return <Hammer className={cls} />;
+      case 'Star':
+        return <Star className={cls} />;
       case 'Crown':
         return <Crown className={cls} />;
-      default:
-        return <Flame className={cls} />;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* 1. PURPOSE & MANIFESTO STORY BANNER */}
-      <div className="forge-card-claret rounded-2xl p-5 sm:p-6 transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 text-xs font-mono-metric uppercase tracking-wider text-[#1BB1E7]">
-              <Hammer className="w-3.5 h-3.5" /> THE IRONCLAD MANIFESTO • FOUNDER’S LAUNCH SCRIPT
-            </div>
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-[#F8F9FA] tracking-wide">
-              “{FOUNDER_MANIFESTO.headline}”
+      {/* ================================================================= */}
+      {/* 1. TOP DASHBOARD SUMMARY: CURRENT STREAK, LOG TODAY & NEXT BADGE  */}
+      {/* ================================================================= */}
+      <section
+        aria-label="Daily sobriety summary"
+        className="iron-card p-5 sm:p-6 space-y-5"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E2E8F0] pb-5">
+          <div>
+            <span className="text-xs font-semibold text-[#7A263A]">
+              Daily dashboard
+            </span>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#121518] mt-0.5">
+              The Forge
             </h1>
-            <p className="text-xs sm:text-sm text-[#94A3B8]">
-              {FOUNDER_MANIFESTO.subheadline}
+            <p className="text-sm text-[#475569] mt-0.5">
+              One day, one shift, and one meal at a time.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-center">
+
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={handleCopyScript}
-              className="py-2 px-3 rounded-lg bg-[#121518]/80 hover:bg-[#121518] border border-[#2E353D] text-xs font-semibold text-[#1BB1E7] flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              {copiedManifesto ? 'Copied Script!' : 'Copy Launch Script'}
-            </button>
-            <button
-              id="toggle-manifesto-btn"
-              onClick={() => setManifestoExpanded((prev) => !prev)}
-              className="py-2 px-3 rounded-lg bg-[#1E2328] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-semibold text-[#F8F9FA] flex items-center gap-1 transition cursor-pointer"
-            >
-              {manifestoExpanded ? (
-                <>
-                  Hide Story <ChevronUp className="w-4 h-4" />
-                </>
-              ) : (
-                <>
-                  Read Full Story <ChevronDown className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {manifestoExpanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="mt-4 pt-4 border-t border-[#7A263A]/40 space-y-4"
-          >
-            <blockquote className="bg-[#121518]/85 border-l-4 border-[#1BB1E7] p-4 rounded-r-xl text-xs sm:text-sm text-[#F8F9FA]/95 whitespace-pre-line leading-relaxed italic">
-              {FOUNDER_MANIFESTO.socialLaunchScript}
-            </blockquote>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {FOUNDER_MANIFESTO.missionPillars.map((pillar, i) => (
-                <div
-                  key={i}
-                  className="bg-[#121518]/70 border border-[#2E353D] rounded-xl p-3.5"
-                >
-                  <div className="text-xs font-display uppercase tracking-wider text-[#1BB1E7] font-bold">
-                    {pillar.title}
-                  </div>
-                  <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">
-                    {pillar.detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </div>
-
-      {/* 2. INTERACTIVE SOBRIETY & RESILIENCE COUNTER + MILESTONE BADGES */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Counter & +1 Day Forged Card */}
-        <div className="lg:col-span-7 forge-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] tracking-wider block">
-                LIVE SOBRIETY & RESILIENCE TELEMETRY
-              </span>
-              <h2 className="font-display text-xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-                YOUR IRONCLAD STREAK COUNTER
-              </h2>
-            </div>
-
-            <motion.button
               id="forge-plus-one-day-btn"
-              whileTap={{ scale: 0.95 }}
-              onClick={handleForgePlusOne}
-              className="py-3 px-5 rounded-xl bg-gradient-to-r from-[#7A263A] to-[#9E334D] hover:from-[#8F2D45] hover:to-[#B03956] text-white font-display text-base tracking-wider uppercase shadow-lg border border-[#1BB1E7]/50 flex items-center gap-2 cursor-pointer"
+              type="button"
+              onClick={() => {
+                onIncrementStreak();
+                setSavedNotice('Added +1 alcohol-free day to your streak.');
+                setTimeout(() => setSavedNotice(null), 3000);
+              }}
+              className="iron-btn-primary py-2.5 px-4 text-sm flex items-center gap-2 cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-[#1BB1E7]" />
-              +1 DAY FORGED
-            </motion.button>
-          </div>
+              <Sparkles className="w-4 h-4" />
+              Log +1 alcohol-free day
+            </button>
 
-          {/* 3 Primary Telemetry Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className="bg-[#121518] border border-[#7A263A]/70 rounded-xl p-4">
-              <div className="flex items-center justify-between text-xs text-[#94A3B8]">
-                <span>DAYS ALCOHOL-FREE</span>
-                <Flame className="w-4 h-4 text-[#1BB1E7]" />
-              </div>
-              <div className="font-mono-metric text-3xl sm:text-4xl font-bold text-[#F8F9FA] mt-1">
-                {streakDays}
-              </div>
-              <div className="text-[11px] text-[#1BB1E7] mt-1 font-medium">
-                {streakDays >= 30
-                  ? 'Dopamine Baseline Restored'
-                  : `${30 - streakDays} days to 30-Day Hammer`}
-              </div>
-            </div>
-
-            <div className="bg-[#121518] border border-[#1BB1E7]/40 rounded-xl p-4">
-              <div className="flex items-center justify-between text-xs text-[#94A3B8]">
-                <span>MONEY SAVED (£)</span>
-                <Coins className="w-4 h-4 text-[#1BB1E7]" />
-              </div>
-              <div className="font-mono-metric text-3xl sm:text-4xl font-bold text-emerald-400 mt-1">
-                £{moneySavedGBP}
-              </div>
-              <div className="text-[11px] text-[#94A3B8] mt-1">
-                Based on £{weeklySpendGBP}/wk former spend
-              </div>
-            </div>
-
-            <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-4">
-              <div className="flex items-center justify-between text-xs text-[#94A3B8]">
-                <span>EMPTY CALORIES / UNITS</span>
-                <Zap className="w-4 h-4 text-[#1BB1E7]" />
-              </div>
-              <div className="font-mono-metric text-2xl sm:text-3xl font-bold text-[#F8F9FA] mt-1">
-                {emptyCaloriesAvoided} <span className="text-xs font-normal text-[#94A3B8]">kcal</span>
-              </div>
-              <div className="text-[11px] text-[#1BB1E7] mt-1">
-                {unitsAvoided} UK alcohol units dodged
-              </div>
-            </div>
-          </div>
-
-          {/* Former Weekly Spend Slider */}
-          <div className="bg-[#121518]/80 border border-[#2E353D] rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="text-xs">
-              <span className="font-semibold text-[#F8F9FA]">
-                Former Weekly Pub / Booze Spend:{' '}
-              </span>
-              <span className="font-mono-metric font-bold text-[#1BB1E7]">
-                £{weeklySpendGBP} / week
-              </span>
-              <span className="text-[#94A3B8] block text-[11px]">
-                 equals £{(weeklySpendGBP * 52).toLocaleString()} tax-free cash saved per year
-              </span>
-            </div>
-            <input
-              type="range"
-              min={15}
-              max={250}
-              step={5}
-              value={weeklySpendGBP}
-              onChange={(e) => onChangeWeeklySpend(Number(e.target.value))}
-              className="iron-slider w-full sm:w-48"
-              aria-label="Former Weekly Spend GBP"
-            />
-          </div>
-
-          {/* Unlockable Iron Milestone Badges */}
-          <div>
-            <div className="text-xs font-mono-metric uppercase text-[#94A3B8] mb-2.5">
-              UNLOCKABLE IRON MILESTONE BADGES ({MILESTONE_BADGES.filter((b) => streakDays >= b.daysRequired).length}/{MILESTONE_BADGES.length} UNLOCKED)
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-              {MILESTONE_BADGES.map((badge) => {
-                const unlocked = streakDays >= badge.daysRequired;
-                return (
-                  <div
-                    key={badge.id}
-                    className={`rounded-xl p-3 border transition flex flex-col justify-between ${
-                      unlocked
-                        ? 'bg-gradient-to-b from-[#7A263A]/45 to-[#121518] border-[#1BB1E7]/60 shadow-md'
-                        : 'bg-[#121518]/50 border-[#2E353D] opacity-60'
-                    }`}
-                    title={badge.description}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      {renderBadgeIcon(badge.iconName, unlocked)}
-                      <span
-                        className={`text-[10px] font-mono-metric px-1.5 py-0.5 rounded ${
-                          unlocked
-                            ? 'bg-[#1BB1E7]/20 text-[#1BB1E7] font-bold'
-                            : 'bg-[#1E2328] text-[#94A3B8]'
-                        }`}
-                      >
-                        {unlocked ? 'FORGED' : `DAY ${badge.daysRequired}`}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="font-display text-xs font-bold uppercase text-[#F8F9FA]">
-                        {badge.title}
-                      </div>
-                      <div className="text-[10px] text-[#94A3B8] leading-tight mt-0.5">
-                        {badge.subtitle}
-                      </div>
-                    </div>
-                  </div>
+            <button
+              id="reset-streak-keep-badges-btn"
+              type="button"
+              onClick={() => {
+                onResetStreakKeepBadges();
+                setSavedNotice(
+                  `Active streak reset to Day 0. Your ${milestoneSummary.unlockedCount} earned Iron Milestones are preserved.`
                 );
-              })}
-            </div>
+                setTimeout(() => setSavedNotice(null), 4000);
+              }}
+              className="iron-btn-secondary py-2.5 px-3.5 text-xs flex items-center gap-1.5 cursor-pointer"
+              title="Resets active streak to 0 while keeping all earned milestone badges"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-[#7A263A]" />
+              Reset active streak
+            </button>
           </div>
         </div>
 
-        {/* 28-DAY CONSISTENCY HEATMAP GRID */}
-        <div className="lg:col-span-5 forge-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" /> 28-DAY CONSISTENCY HEATMAP
-              </span>
-              <span className="text-xs font-mono-metric text-[#94A3B8]">
-                {heatmapDays.filter(Boolean).length}/28 Days Forged
-              </span>
+        {/* 3 Core Metrics: Current Streak, Next Milestone, Money Saved */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="iron-surface p-4">
+            <div className="text-xs font-medium text-[#475569]">
+              Current alcohol-free streak
             </div>
-            <h3 className="font-display text-lg font-bold text-[#F8F9FA] uppercase">
-              LOOP-STYLE STREAK GRID
-            </h3>
-            <p className="text-xs text-[#94A3B8] mt-0.5">
-              Tap any day cell to toggle completion. Never break the chain two days in a row.
-            </p>
+            <div
+              id="current-streak-value"
+              className="font-mono-metric text-3xl sm:text-4xl font-bold text-[#121518] mt-1"
+            >
+              {streakDays} {streakDays === 1 ? 'day' : 'days'}
+            </div>
+            <div className="text-xs text-[#334155] mt-1">
+              {milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} Iron Milestones earned
+            </div>
+          </div>
 
-            <div className="grid grid-cols-7 gap-2 mt-4">
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+          <div className="iron-surface-selected p-4">
+            <div className="text-xs font-semibold text-[#0284C7]">
+              Next milestone
+            </div>
+            {milestoneSummary.allUnlocked ? (
+              <>
                 <div
-                  key={idx}
-                  className="text-center text-[10px] font-mono-metric text-[#94A3B8]"
+                  id="next-milestone-heading"
+                  className="font-display text-xl font-bold text-[#121518] mt-1"
                 >
-                  {d}
+                  All 12 of 12 Iron Milestones unlocked
                 </div>
-              ))}
-              {heatmapDays.map((completed, idx) => {
-                const isToday = idx === 27;
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => onToggleHeatmapDay(idx)}
-                    className={`h-10 rounded-lg font-mono-metric text-xs font-bold transition flex flex-col items-center justify-center border cursor-pointer ${
-                      completed
-                        ? isToday
-                          ? 'bg-[#1BB1E7] text-[#121518] border-white shadow-[0_0_12px_rgba(27,177,231,0.5)]'
-                          : 'bg-[#7A263A] text-[#F8F9FA] border-[#1BB1E7]/50 hover:bg-[#9E334D]'
-                        : 'bg-[#121518] text-[#94A3B8] border-[#2E353D] hover:border-[#94A3B8]'
-                    }`}
-                    title={`Day ${idx + 1} (${completed ? 'Forged' : 'Missed'})`}
-                  >
-                    <span>D{idx + 1}</span>
-                  </button>
-                );
-              })}
-            </div>
+                <div className="text-xs text-[#334155] mt-1">
+                  365 Unbreakable achieved—keep stacking one day at a time.
+                </div>
+              </>
+            ) : milestoneSummary.nextMilestone ? (
+              <>
+                <div
+                  id="next-milestone-heading"
+                  className="font-display text-xl font-bold text-[#121518] mt-1"
+                >
+                  {milestoneSummary.nextMilestone.title} (Day{' '}
+                  {milestoneSummary.nextMilestone.daysRequired})
+                </div>
+                <div
+                  id="next-milestone-countdown"
+                  className="text-xs font-semibold text-[#0284C7] mt-1"
+                >
+                  {milestoneSummary.nextMilestone.daysRemaining}{' '}
+                  {milestoneSummary.nextMilestone.daysRemaining === 1
+                    ? 'day'
+                    : 'days'}{' '}
+                  remaining
+                </div>
+              </>
+            ) : null}
           </div>
 
-          <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-3.5 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 text-[#F8F9FA]">
-                <span className="w-3 h-3 rounded-sm bg-[#7A263A] border border-[#1BB1E7]/60 inline-block" />
-                Forged Day
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[#F8F9FA]">
-                <span className="w-3 h-3 rounded-sm bg-[#1BB1E7] inline-block" />
-                Today Active
-              </span>
+          <div className="iron-surface p-4">
+            <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
+              <span>Estimated money saved</span>
+              <span>£{weeklySpendGBP}/wk baseline</span>
             </div>
-            <span className="font-mono-metric text-emerald-400 font-bold">
-              {Math.round((heatmapDays.filter(Boolean).length / 28) * 100)}% Consistency
-            </span>
+            <div className="font-mono-metric text-3xl sm:text-4xl font-bold text-[#7A263A] mt-1">
+              £{moneySavedGBP}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <label
+                htmlFor="weekly-spend-slider"
+                className="text-[11px] text-[#475569] whitespace-nowrap"
+              >
+                Weekly spend:
+              </label>
+              <input
+                id="weekly-spend-slider"
+                type="range"
+                min={15}
+                max={250}
+                step={5}
+                value={weeklySpendGBP}
+                onChange={(e) => onChangeWeeklySpend(Number(e.target.value))}
+                className="iron-slider w-full"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* 3. 60-SECOND DAILY CHECK-IN, VIKUNJA NON-NEGOTIABLES & 7-DAY TREND CHART */}
+      {/* ================================================================= */}
+      {/* 2. LOG TODAY (QUICK ON-DEVICE DEXIE CHECK-IN & NON-NEGOTIABLES)   */}
+      {/* ================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Daily Check-In + Non-Negotiables */}
-        <div className="lg:col-span-6 forge-card rounded-2xl p-5 sm:p-6 space-y-5">
-          <div>
-            <span className="text-xs font-mono-metric uppercase text-[#1BB1E7]">
-              60-SECOND SHIFT DEBRIEF & VIKUNJA NON-NEGOTIABLES
+        <section
+          aria-label="Log today check-in"
+          className="lg:col-span-6 iron-card p-5 sm:p-6 space-y-5"
+        >
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+            <div>
+              <h2 className="font-display text-xl font-bold text-[#121518]">
+                Log today
+              </h2>
+              <p className="text-xs text-[#475569]">
+                Saved privately on this device. Editing a date updates it in place.
+              </p>
+            </div>
+            <span className="font-mono-metric text-xs font-semibold text-[#7A263A] bg-[#FDF2F4] px-2.5 py-1 rounded-md border border-[#7A263A]/20">
+              {selectedDate}
             </span>
-            <h2 className="font-display text-xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-              DAILY FORGE CHECK-IN
-            </h2>
           </div>
 
-          {/* 3 Daily Non-Negotiables + Custom Task */}
-          <div className="space-y-2">
-            <div className="text-xs font-mono-metric uppercase text-[#94A3B8]">
-              TODAY’S IRONCLAD NON-NEGOTIABLES ({tasks.filter((t) => t.completed).length}/{tasks.length})
+          <form
+            ref={checkInFormRef}
+            onSubmit={handleCheckInSubmit}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  htmlFor="checkin-date-input"
+                  className="block text-xs font-medium text-[#334155] mb-1"
+                >
+                  Check-in date
+                </label>
+                <input
+                  id="checkin-date-input"
+                  type="date"
+                  value={selectedDate}
+                  max={todayISO}
+                  onChange={(e) => loadDateIntoForm(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                />
+              </div>
+
+              <div>
+                <span className="block text-xs font-medium text-[#334155] mb-1">
+                  Status for this date
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAlcoholFree(true)}
+                    aria-pressed={alcoholFree}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                      alcoholFree
+                        ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                        : 'bg-white text-[#334155] border-[#CBD5E1]'
+                    }`}
+                  >
+                    Alcohol-free
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAlcoholFree(false)}
+                    aria-pressed={!alcoholFree}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                      !alcoholFree
+                        ? 'bg-[#DC2626] text-white border-[#DC2626]'
+                        : 'bg-white text-[#334155] border-[#CBD5E1]'
+                    }`}
+                  >
+                    Setback
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <label
+                    htmlFor="checkin-craving-slider"
+                    className="font-medium text-[#334155]"
+                  >
+                    Craving intensity (optional)
+                  </label>
+                  <span className="font-mono-metric font-semibold text-[#7A263A]">
+                    {cravingIntensity}/10
+                  </span>
+                </div>
+                <input
+                  id="checkin-craving-slider"
+                  type="range"
+                  min={0}
+                  max={10}
+                  value={cravingIntensity}
+                  onChange={(e) => setCravingIntensity(Number(e.target.value))}
+                  className="iron-slider w-full"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <label
+                    htmlFor="checkin-mood-slider"
+                    className="font-medium text-[#334155]"
+                  >
+                    Overall mood (optional)
+                  </label>
+                  <span className="font-mono-metric font-semibold text-[#0284C7]">
+                    {mood}/10
+                  </span>
+                </div>
+                <input
+                  id="checkin-mood-slider"
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={mood}
+                  onChange={(e) => setMood(Number(e.target.value))}
+                  className="iron-slider w-full"
+                />
+              </div>
+            </div>
+
+            {/* Optional Trigger & What Helped */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  htmlFor="checkin-trigger-input"
+                  className="block text-xs font-medium text-[#334155] mb-1"
+                >
+                  Main trigger (optional)
+                </label>
+                <input
+                  id="checkin-trigger-input"
+                  type="text"
+                  list="trigger-suggestions"
+                  value={trigger}
+                  onChange={(e) => setTrigger(e.target.value)}
+                  placeholder="e.g., After-shift fatigue"
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                />
+                <datalist id="trigger-suggestions">
+                  {TRIGGER_SUGGESTIONS.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="checkin-helped-input"
+                  className="block text-xs font-medium text-[#334155] mb-1"
+                >
+                  What helped (optional)
+                </label>
+                <input
+                  id="checkin-helped-input"
+                  type="text"
+                  list="helped-suggestions"
+                  value={whatHelped}
+                  onChange={(e) => setWhatHelped(e.target.value)}
+                  placeholder="e.g., Cooked a proper meal"
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                />
+                <datalist id="helped-suggestions">
+                  {HELPED_SUGGESTIONS.map((h) => (
+                    <option key={h} value={h} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="checkin-private-note"
+                className="block text-xs font-medium text-[#334155] mb-1"
+              >
+                Private note (kept on this device only — never sent to Cornerman or workplace tools)
+              </label>
+              <input
+                id="checkin-private-note"
+                type="text"
+                value={privateNote}
+                onChange={(e) => setPrivateNote(e.target.value)}
+                placeholder="Write a quick reflection for yourself..."
+                className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+              />
+            </div>
+
+            <button
+              id="log-daily-forge-btn"
+              type="submit"
+              className="iron-btn-primary w-full py-3 px-4 text-sm cursor-pointer"
+            >
+              Save check-in for {selectedDate}
+            </button>
+
+            {savedNotice && (
+              <div
+                role="status"
+                className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                <span>{savedNotice}</span>
+              </div>
+            )}
+          </form>
+
+          {/* Daily Non-Negotiables */}
+          <div className="pt-4 border-t border-[#E2E8F0] space-y-2.5">
+            <div className="text-xs font-semibold text-[#334155]">
+              Daily habits ({tasks.filter((t) => t.completed).length} of {tasks.length} complete)
             </div>
             {tasks.map((task) => (
               <label
                 key={task.id}
                 onClick={() => onToggleTask(task.id)}
-                className={`flex items-center gap-3 p-3 rounded-xl border transition cursor-pointer select-none ${
+                className={`flex items-center gap-3 p-2.5 rounded-lg border text-xs transition cursor-pointer select-none ${
                   task.completed
-                    ? 'bg-[#7A263A]/25 border-[#1BB1E7]/50 text-[#F8F9FA]'
-                    : 'bg-[#121518] border-[#2E353D] text-[#94A3B8] hover:text-[#F8F9FA]'
+                    ? 'bg-[#FDF2F4] border-[#7A263A]/30 text-[#121518]'
+                    : 'bg-white border-[#E2E8F0] text-[#334155] hover:bg-[#F8FAFC]'
                 }`}
               >
                 <input
@@ -429,218 +659,432 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                   className="sr-only"
                 />
                 <div
-                  className={`w-5 h-5 rounded-md flex items-center justify-center border ${
+                  className={`w-4 h-4 rounded flex items-center justify-center border ${
                     task.completed
-                      ? 'bg-[#1BB1E7] border-[#1BB1E7] text-[#121518]'
-                      : 'border-[#94A3B8]'
+                      ? 'bg-[#7A263A] border-[#7A263A] text-white'
+                      : 'border-[#94A3B8] bg-white'
                   }`}
                 >
-                  {task.completed && <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />}
+                  {task.completed && <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />}
                 </div>
-                <span
-                  className={`text-xs sm:text-sm font-medium flex-1 ${
-                    task.completed ? 'line-through opacity-90' : ''
-                  }`}
-                >
+                <span className={`flex-1 ${task.completed ? 'line-through text-[#475569]' : 'font-medium'}`}>
                   {task.label}
                 </span>
               </label>
             ))}
 
-            {/* Custom Non-Negotiable Form */}
             <form onSubmit={handleAddTaskSubmit} className="flex gap-2 pt-1">
               <input
                 type="text"
                 value={newTaskText}
                 onChange={(e) => setNewTaskText(e.target.value)}
-                placeholder="Add custom non-negotiable (e.g., 2L water on pass, call Mum)..."
-                className="flex-1 px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA] focus:border-[#1BB1E7] outline-none"
+                placeholder="Add a personal daily habit..."
+                className="flex-1 px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
               />
               <button
                 type="submit"
-                className="px-3.5 py-2 rounded-lg bg-[#1E2328] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-semibold text-[#1BB1E7] flex items-center gap-1 cursor-pointer"
+                className="iron-btn-secondary px-3 py-2 text-xs flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" /> Add
               </button>
             </form>
           </div>
+        </section>
 
-          {/* 3 Interactive Sliders */}
-          <form onSubmit={handleLogSubmit} className="space-y-4 pt-2 border-t border-[#2E353D]">
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="font-semibold text-[#F8F9FA]">Mood & Mental Clarity</span>
-                  <span className="font-mono-metric font-bold text-[#1BB1E7]">{mood} / 10</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={mood}
-                  onChange={(e) => setMood(Number(e.target.value))}
-                  className="iron-slider w-full"
-                />
-              </div>
+        {/* =============================================================== */}
+        {/* 3. 28-DAY HEATMAP FROM DATED ENTRIES & RECHARTS TRENDS VIEW     */}
+        {/* =============================================================== */}
+        <section
+          aria-label="Check-in history and trends"
+          className="lg:col-span-6 iron-card p-5 sm:p-6 flex flex-col justify-between space-y-5"
+        >
+          {/* 28-Day Heatmap from actual dated entries */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-display text-xl font-bold text-[#121518] flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#7A263A]" />
+                Last 28 days (from dated check-ins)
+              </h2>
+              <span className="font-mono-metric text-xs font-semibold text-[#334155]">
+                {heatmapCells.filter((c) => c.logged && c.alcoholFree).length} of 28 logged alcohol-free
+              </span>
+            </div>
+            <p className="text-xs text-[#475569] mb-3">
+              Select any date below to view or edit that day’s check-in.
+            </p>
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="font-semibold text-[#F8F9FA]">Sleep Quality (Deep REM)</span>
-                  <span className="font-mono-metric font-bold text-[#1BB1E7]">{sleep} / 10</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={sleep}
-                  onChange={(e) => setSleep(Number(e.target.value))}
-                  className="iron-slider w-full"
-                />
-              </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {heatmapCells.map((cell) => {
+                const isSelected = cell.date === selectedDate;
+                let cellStyle =
+                  'bg-[#F8FAFC] text-[#475569] border-[#E2E8F0] hover:border-[#94A3B8]';
+                if (cell.logged && cell.alcoholFree) {
+                  cellStyle = 'bg-[#7A263A] text-white border-[#7A263A]';
+                } else if (cell.logged && !cell.alcoholFree) {
+                  cellStyle = 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]';
+                }
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="font-semibold text-[#F8F9FA]">Craving Intensity (5 PM Spike)</span>
-                  <span
-                    className={`font-mono-metric font-bold ${
-                      craving >= 7 ? 'text-[#E63946]' : 'text-emerald-400'
+                return (
+                  <button
+                    key={cell.date}
+                    type="button"
+                    onClick={() => loadDateIntoForm(cell.date)}
+                    aria-label={`Check-in date ${cell.date}: ${
+                      cell.logged
+                        ? cell.alcoholFree
+                          ? 'Alcohol-free'
+                          : 'Setback logged'
+                        : 'Not logged'
+                    }`}
+                    className={`h-11 rounded-lg border text-xs transition flex flex-col items-center justify-center cursor-pointer ${cellStyle} ${
+                      isSelected ? 'ring-2 ring-[#0284C7] ring-offset-1' : ''
                     }`}
                   >
-                    {craving} / 10
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={craving}
-                  onChange={(e) => setCraving(Number(e.target.value))}
-                  className="iron-slider w-full"
-                />
-              </div>
+                    <span className="text-[9px] opacity-80">{cell.weekdayShort}</span>
+                    <span className="font-mono-metric font-semibold leading-none mt-0.5">
+                      {cell.dayOfMonth}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
+          {/* Recharts Logged Craving & Mood Trend View */}
+          <div className="pt-3 border-t border-[#E2E8F0]">
+            <div className="flex items-center justify-between mb-2">
               <div>
-                <input
-                  type="text"
-                  value={shiftNote}
-                  onChange={(e) => setShiftNote(e.target.value)}
-                  placeholder="Optional 1-line shift note (e.g., Smashed mackerel bowl after late close)..."
-                  className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA] focus:border-[#1BB1E7] outline-none"
-                />
+                <h3 className="text-sm font-semibold text-[#121518]">
+                  Self-reported craving and mood trends
+                </h3>
+                <p className="text-xs text-[#475569]">
+                  Plotted directly from your logged check-in dates
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1 text-[#0284C7] font-medium">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#0284C7] inline-block" /> Mood
+                </span>
+                <span className="flex items-center gap-1 text-[#7A263A] font-medium">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#7A263A] inline-block" /> Craving
+                </span>
               </div>
             </div>
 
-            <button
-              id="log-daily-forge-btn"
-              type="submit"
-              className="w-full py-3 rounded-xl bg-[#7A263A] hover:bg-[#9E334D] text-white font-display text-sm tracking-wider uppercase shadow-md transition cursor-pointer"
-            >
-              LOG DAILY FORGE TELEMETRY
-            </button>
-
-            {loggedSuccess && (
-              <div className="p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Today’s Forge check-in saved & plotted to your 7-Day Trend Chart.
+            {trendData.length === 0 ? (
+              <div className="iron-surface p-6 text-center text-xs text-[#475569]">
+                No check-ins logged yet. Save your first check-in on the left to see your trend chart.
+              </div>
+            ) : (
+              <div className="h-44 w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                    <XAxis
+                      dataKey="dateLabel"
+                      tick={{ fontSize: 11, fill: '#475569' }}
+                      stroke="#CBD5E1"
+                    />
+                    <YAxis
+                      domain={[0, 10]}
+                      tick={{ fontSize: 11, fill: '#475569' }}
+                      stroke="#CBD5E1"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#CBD5E1',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        color: '#121518',
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="mood"
+                      name="Mood (1-10)"
+                      stroke="#0284C7"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#0284C7' }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="craving"
+                      name="Craving (0-10)"
+                      stroke="#7A263A"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#7A263A' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             )}
-          </form>
-        </div>
+          </div>
 
-        {/* 7-DAY TREND CHART & RECENT LOGS */}
-        <div className="lg:col-span-6 forge-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-5">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5" /> 7-DAY NEUROCHEMICAL RECOVERY CHART
+          {/* Dated Check-in History List + Export / Restore / Delete Controls */}
+          <div className="pt-3 border-t border-[#E2E8F0] space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[#334155]">
+                Recent dated check-ins ({checkIns.length})
               </span>
-              <div className="flex items-center gap-3 text-[11px]">
-                <span className="flex items-center gap-1 text-[#1BB1E7]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#1BB1E7] inline-block" /> Mood
-                </span>
-                <span className="flex items-center gap-1 text-[#7A263A]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#9E334D] inline-block" /> Sleep
-                </span>
-                <span className="flex items-center gap-1 text-[#E63946]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#E63946] inline-block" /> Craving
-                </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  id="export-checkins-btn"
+                  type="button"
+                  onClick={handleExportClick}
+                  className="iron-btn-secondary py-1.5 px-2.5 text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3 h-3 text-[#7A263A]" /> Export JSON
+                </button>
+                <button
+                  id="restore-checkins-btn"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="iron-btn-secondary py-1.5 px-2.5 text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Upload className="w-3 h-3 text-[#0284C7]" /> Restore JSON
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={handleRestoreFileChange}
+                  className="hidden"
+                />
+                {checkIns.length > 0 && (
+                  <button
+                    id="clear-all-checkins-btn"
+                    type="button"
+                    onClick={() => onClearAllCheckIns()}
+                    className="iron-btn-secondary py-1.5 px-2.5 text-[11px] text-[#DC2626] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" /> Clear all
+                  </button>
+                )}
               </div>
             </div>
-            <h3 className="font-display text-xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-              MOOD & SLEEP VS. CRAVING INTENSITY
-            </h3>
-          </div>
 
-          {/* Interactive Bar/Column Comparison Chart */}
-          <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-4">
-            <div className="grid grid-cols-7 gap-2 h-44 items-end pt-4">
-              {forgeLogs.slice(-7).map((entry, idx) => (
-                <div
-                  key={`${entry.date}-${idx}`}
-                  className="flex flex-col items-center h-full justify-end group"
-                >
-                  <div className="flex items-end gap-1 w-full justify-center h-32">
-                    {/* Mood Bar */}
-                    <div
-                      style={{ height: `${entry.mood * 10}%` }}
-                      className="w-2.5 sm:w-3 rounded-t bg-[#1BB1E7] transition-all"
-                      title={`Mood: ${entry.mood}/10`}
-                    />
-                    {/* Sleep Bar */}
-                    <div
-                      style={{ height: `${entry.sleep * 10}%` }}
-                      className="w-2.5 sm:w-3 rounded-t bg-[#9E334D] transition-all"
-                      title={`Sleep: ${entry.sleep}/10`}
-                    />
-                    {/* Craving Bar */}
-                    <div
-                      style={{ height: `${entry.craving * 10}%` }}
-                      className="w-2.5 sm:w-3 rounded-t bg-[#E63946]/85 transition-all"
-                      title={`Craving: ${entry.craving}/10`}
-                    />
-                  </div>
-                  <div className="text-[11px] font-mono-metric text-[#F8F9FA] mt-2">
-                    {entry.dayLabel}
-                  </div>
-                  <div className="text-[9px] font-mono-metric text-[#94A3B8]">
-                    M{entry.mood}•C{entry.craving}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Shift Debrief Notes */}
-          <div className="space-y-2">
-            <div className="text-xs font-mono-metric uppercase text-[#94A3B8]">
-              RECENT SHIFT & RECOVERY DEBRIEFS
-            </div>
             <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-              {forgeLogs
+              {checkIns
                 .slice()
-                .reverse()
-                .slice(0, 4)
-                .map((log, i) => (
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .slice(0, 7)
+                .map((entry) => (
                   <div
-                    key={`${log.date}-${i}`}
-                    className="bg-[#121518] border border-[#2E353D] rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
+                    key={entry.date}
+                    className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-2.5 flex items-start justify-between gap-2 text-xs"
                   >
-                    <div>
-                      <span className="font-mono-metric font-bold text-[#1BB1E7]">
-                        {log.dayLabel} ({log.date}):{' '}
-                      </span>
-                      <span className="text-[#F8F9FA]">
-                        {log.notes || 'Held the line. Non-negotiables completed.'}
-                      </span>
+                    <div
+                      onClick={() => loadDateIntoForm(entry.date)}
+                      className="cursor-pointer flex-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono-metric font-semibold text-[#121518]">
+                          {entry.date}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            entry.alcoholFree
+                              ? 'bg-[#FDF2F4] text-[#7A263A]'
+                              : 'bg-[#FEF2F2] text-[#B91C1C]'
+                          }`}
+                        >
+                          {entry.alcoholFree ? 'Alcohol-free' : 'Setback'}
+                        </span>
+                        {typeof entry.cravingIntensity === 'number' && (
+                          <span className="text-[11px] text-[#475569]">
+                            Craving {entry.cravingIntensity}/10
+                          </span>
+                        )}
+                      </div>
+                      {(entry.trigger || entry.whatHelped || entry.privateNote) && (
+                        <div className="text-[#334155] mt-1">
+                          {entry.trigger && <span>Trigger: {entry.trigger}. </span>}
+                          {entry.whatHelped && <span>Helped: {entry.whatHelped}. </span>}
+                          {entry.privateNote && <span>Note: {entry.privateNote}</span>}
+                        </div>
+                      )}
                     </div>
-                    <span className="font-mono-metric text-[11px] whitespace-nowrap px-2 py-0.5 rounded bg-[#1E2328] text-[#94A3B8]">
-                      Mood {log.mood}/10 • Craving {log.craving}/10
-                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCheckIn(entry.date)}
+                      className="p-1 text-[#475569] hover:text-[#DC2626] cursor-pointer"
+                      aria-label={`Delete check-in for ${entry.date}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
             </div>
           </div>
-        </div>
+        </section>
       </div>
+
+      {/* ================================================================= */}
+      {/* 4. IRON MILESTONES (ALL 12 BADGES: 1,2,3,4,5,6,7,14,30,90,180,365)*/}
+      {/* ================================================================= */}
+      <section
+        id="iron-milestones-section"
+        aria-label="Iron Milestones"
+        className="iron-card p-5 sm:p-6 space-y-4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] pb-3">
+          <div>
+            <h2 className="font-display text-xl font-bold text-[#121518]">
+              Iron Milestones
+            </h2>
+            <p className="text-xs text-[#475569]">
+              Earned badges are saved permanently—even if your active streak resets.
+            </p>
+          </div>
+          <span
+            id="iron-milestones-count"
+            className="font-mono-metric text-xs font-bold px-3 py-1 rounded-full bg-[#FDF2F4] text-[#7A263A] border border-[#7A263A]/30"
+          >
+            {milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} unlocked
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {milestoneSummary.milestones.map((badge) => {
+            const isEarned = badge.status === 'earned';
+            const isNext = badge.status === 'next';
+
+            let cardClasses =
+              'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569]';
+            if (isEarned) {
+              cardClasses =
+                'bg-white border-[#7A263A] text-[#121518] shadow-2xs';
+            } else if (isNext) {
+              cardClasses =
+                'bg-[#F0F9FF] border-[#0284C7] text-[#121518] ring-1 ring-[#0284C7]';
+            }
+
+            return (
+              <div
+                key={badge.id}
+                data-milestone-days={badge.daysRequired}
+                data-milestone-status={badge.status}
+                className={`rounded-xl p-3.5 border flex flex-col justify-between transition ${cardClasses}`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-mono-metric text-sm font-bold text-[#121518]">
+                      Day {badge.daysRequired}
+                    </span>
+                    {isEarned ? (
+                      renderBadgeIcon(badge)
+                    ) : isNext ? (
+                      renderBadgeIcon(badge)
+                    ) : (
+                      <Lock className="w-3.5 h-3.5 text-[#94A3B8]" />
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-xs text-[#121518]">
+                      {badge.title}
+                    </div>
+                    <div className="text-[11px] text-[#475569] mt-0.5 leading-snug">
+                      {badge.subtitle}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-[#E2E8F0] flex items-center justify-between">
+                  {isEarned ? (
+                    <span className="text-[11px] font-semibold text-[#7A263A] flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Earned
+                    </span>
+                  ) : isNext ? (
+                    <span className="text-[11px] font-semibold text-[#0284C7]">
+                      Next • {badge.daysRemaining}d left
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-[#475569]">
+                      Locked • {badge.daysRemaining}d left
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ================================================================= */}
+      {/* 5. SECONDARY EXPANDABLE SECTION: FOUNDER STORY & MANIFESTO        */}
+      {/* ================================================================= */}
+      <section
+        aria-label="Founder story"
+        className="iron-surface p-5 sm:p-6"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-semibold text-[#7A263A]">
+              Why we built Ironclad Mindset
+            </span>
+            <h2 className="font-display text-lg font-bold text-[#121518] mt-0.5">
+              “{FOUNDER_MANIFESTO.headline}”
+            </h2>
+            <p className="text-xs text-[#475569] mt-0.5">
+              {FOUNDER_MANIFESTO.subheadline}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={handleCopyScript}
+              className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
+              {copiedManifesto ? 'Copied script' : 'Copy launch script'}
+            </button>
+            <button
+              id="toggle-manifesto-btn"
+              type="button"
+              onClick={() => setManifestoExpanded((prev) => !prev)}
+              aria-expanded={manifestoExpanded}
+              className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1 cursor-pointer"
+            >
+              {manifestoExpanded ? (
+                <>
+                  Hide story <ChevronUp className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  Read founder story <ChevronDown className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {manifestoExpanded && (
+          <div className="mt-4 pt-4 border-t border-[#E2E8F0] space-y-4">
+            <blockquote className="bg-white border-l-4 border-[#7A263A] p-4 rounded-r-xl text-xs sm:text-sm text-[#121518] whitespace-pre-line leading-relaxed">
+              {FOUNDER_MANIFESTO.socialLaunchScript}
+            </blockquote>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {FOUNDER_MANIFESTO.missionPillars.map((pillar, i) => (
+                <div
+                  key={i}
+                  className="bg-white border border-[#E2E8F0] rounded-xl p-3.5"
+                >
+                  <div className="text-xs font-semibold text-[#7A263A]">
+                    {pillar.title}
+                  </div>
+                  <p className="text-xs text-[#334155] mt-1 leading-relaxed">
+                    {pillar.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 };

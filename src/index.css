@@ -2,67 +2,131 @@
 
 @layer base {
   :root {
-    --forge-charcoal: #121518;
-    --anvil-slate: #1E2328;
-    --anvil-border: #2E353D;
-    --deep-claret: #7A263A;
-    --claret-light: #9E334D;
-    --sky-blue: #1BB1E7;
-    --sos-red: #E63946;
-    --text-primary: #F8F9FA;
-    --text-muted: #94A3B8;
+    /* Centralised Ironclad White Theme Tokens */
+    --bg-canvas: #FFFFFF;
+    --bg-surface: #F8FAFC;
+    --bg-surface-muted: #F1F5F9;
+    --border-subtle: #E2E8F0;
+    --border-strong: #CBD5E1;
+
+    --text-primary: #121518;
+    --text-secondary: #334155;
+    --text-muted: #475569;
+
+    --brand-claret: #7A263A;
+    --brand-claret-hover: #631E2E;
+    --brand-claret-tint: #FDF2F4;
+
+    --accent-sky: #0284C7;
+    --accent-sky-bright: #1BB1E7;
+    --accent-sky-tint: #F0F9FF;
+
+    --urgent-red: #DC2626;
+    --urgent-red-hover: #B91C1C;
+    --urgent-red-tint: #FEF2F2;
+
+    --radius-card: 0.875rem;
+    --radius-control: 0.625rem;
+    --space-section: 1.5rem;
   }
 
   * {
-    border-color: #2E353D;
+    border-color: var(--border-subtle);
     box-sizing: border-box;
   }
 
   body {
-    background-color: #121518;
-    color: #F8F9FA;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.5;
     overflow-x: hidden;
   }
 
-  h1, h2, h3, .font-display {
+  /* Display font used selectively for key page headings */
+  .font-display {
     font-family: 'Oswald', sans-serif;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
   }
 
   .font-mono-metric {
     font-family: 'JetBrains Mono', monospace;
   }
+
+  /* Visible accessible keyboard focus ring */
+  :focus-visible {
+    outline: 2px solid var(--accent-sky);
+    outline-offset: 2px;
+  }
 }
 
-/* Subtle forged metal surface depth */
-.forge-card {
-  background: linear-gradient(180deg, rgba(35, 41, 48, 0.92) 0%, rgba(26, 31, 36, 0.98) 100%);
-  border: 1px solid #2E353D;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+/* Shared Clean Surface Classes (No decorative gradients or heavy shadows) */
+.iron-card {
+  background-color: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
 }
 
-.forge-card-claret {
-  background: linear-gradient(135deg, rgba(122, 38, 58, 0.28) 0%, rgba(30, 35, 40, 0.96) 65%);
-  border: 1px solid rgba(122, 38, 58, 0.55);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.07);
+.iron-surface {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
 }
 
-.forge-card-sky {
-  background: linear-gradient(135deg, rgba(27, 177, 231, 0.14) 0%, rgba(30, 35, 40, 0.96) 65%);
-  border: 1px solid rgba(27, 177, 231, 0.4);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.07);
+.iron-surface-selected {
+  background-color: var(--accent-sky-tint);
+  border: 1px solid var(--accent-sky);
+  border-radius: var(--radius-card);
 }
 
-/* Custom Range Slider */
+.iron-btn-primary {
+  background-color: var(--brand-claret);
+  color: #FFFFFF;
+  border: 1px solid var(--brand-claret);
+  border-radius: var(--radius-control);
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.iron-btn-primary:hover:not(:disabled) {
+  background-color: var(--brand-claret-hover);
+  border-color: var(--brand-claret-hover);
+}
+
+.iron-btn-secondary {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.iron-btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-surface-muted);
+}
+
+.iron-btn-urgent {
+  background-color: var(--urgent-red);
+  color: #FFFFFF;
+  border: 1px solid var(--urgent-red);
+  border-radius: var(--radius-control);
+  font-weight: 600;
+  transition: background-color 0.15s ease;
+}
+
+.iron-btn-urgent:hover:not(:disabled) {
+  background-color: var(--urgent-red-hover);
+}
+
+/* Accessible Range Slider */
 input[type="range"].iron-slider {
   -webkit-appearance: none;
   appearance: none;
   height: 8px;
-  background: #121518;
+  background: var(--bg-surface-muted);
   border-radius: 999px;
-  border: 1px solid #2E353D;
-  outline: none;
+  border: 1px solid var(--border-strong);
 }
 
 input[type="range"].iron-slider::-webkit-slider-thumb {
@@ -71,31 +135,22 @@ input[type="range"].iron-slider::-webkit-slider-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #1BB1E7;
-  border: 2px solid #F8F9FA;
+  background: var(--brand-claret);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 3px rgba(18, 21, 24, 0.25);
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(27, 177, 231, 0.55);
-  transition: transform 0.15s ease;
 }
 
-input[type="range"].iron-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #121518;
-}
-::-webkit-scrollbar-thumb {
-  background: #2E353D;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #7A263A;
+/* Reduced Motion Accessibility Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @media print {

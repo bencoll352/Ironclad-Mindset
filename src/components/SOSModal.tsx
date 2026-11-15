@@ -1,11 +1,9 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
-  AlertTriangle,
   Bot,
   CheckCircle2,
   Clock,
   FastForward,
-  Flame,
   PhoneCall,
   Play,
   RotateCcw,
@@ -24,6 +22,7 @@ interface SOSModalProps {
   onEscalateToCornerman: (prompt: string) => void;
   onJumpToFuel: () => void;
   onTriggerWitchingHourWebhook: (haltState: string) => void;
+  onCompleteReset?: (haltState: string) => void;
 }
 
 type HALTKey = 'Hungry' | 'Angry' | 'Lonely' | 'Tired';
@@ -38,44 +37,44 @@ const HALT_PROTOCOLS: Record<
   }
 > = {
   Hungry: {
-    headline: 'HYPOGLYCAEMIA DISGUISED AS A CRAVING',
+    headline: 'Low blood sugar often feels like a craving',
     science:
-      'When your blood glucose drops after a long shift, your brain screams for the fastest liquid sugar it knows—alcohol. Eat 35g+ protein and complex carbs now and the craving drops by 70% inside 15 minutes.',
+      'When your blood glucose drops after a long shift, your brain looks for fast energy. Eating a proper meal with protein and complex carbs takes the edge off within 15 minutes.',
     immediateAction:
-      'Go straight to the kitchen: make the 10-Min Smashed Mackerel & Chickpea Bowl or sear a 12-Min Rump Steak Skillet. Pour an ice-cold ginger ACV spritz first.',
-    buttonLabel: 'Open 15-Min Shift Meals',
+      'Head to the kitchen: make the 10-minute Smashed Mackerel & Chickpea Bowl or sear a 12-minute Steak Skillet. Pour a cold ginger and lime spritz first.',
+    buttonLabel: 'Open 15-minute shift meals',
   },
   Angry: {
-    headline: 'ADRENALINE & CORTISOL FLOODING THE PASS',
+    headline: 'High stress and tension after work',
     science:
-      'Resentment and workplace frustration lock your sympathetic nervous system in fight-or-flight. Drinking on anger pours petrol on the amygdala and wrecks your sleep architecture.',
+      'Workplace frustration keeps your body in fight-or-flight mode. Drinking on frustration only disrupts your sleep and leaves the problem waiting tomorrow.',
     immediateAction:
-      'Drop your shoulders. Finish 60 seconds of 4-4-4-4 Box Breathing above, splash freezing water on your wrists/face, and walk outside for 10 minutes without your phone.',
-    buttonLabel: 'Talk It Out With Cornerman AI',
+      'Drop your shoulders. Complete 60 seconds of Box Breathing, splash cold water on your wrists, and step outside for 10 minutes without your phone.',
+    buttonLabel: 'Talk it through with Cornerman',
   },
   Lonely: {
-    headline: 'ISOLATION IN THE QUIET HOURS',
+    headline: 'Quiet hours after a busy shift',
     science:
-      'Walking into an empty room after a noisy shift or site is one of the biggest triggers in recovery. The pub offers fake company at a brutal price.',
+      'Walking into a quiet flat after a noisy shift or site is a common trigger. Reaching out to someone breaks the isolation immediately.',
     immediateAction:
-      'Post a quick check-in inside #kitchen-and-shift-workers or #day-1-starters in The Locker Room, or talk directly with the Cornerman AI right now.',
-    buttonLabel: 'Open Cornerman 5 PM Talk-Down',
+      'Check in with peers in the Locker Room or talk with Cornerman right now.',
+    buttonLabel: 'Open Cornerman companion',
   },
   Tired: {
-    headline: 'DECISION FATIGUE & NERVOUS SYSTEM EXHAUSTION',
+    headline: 'Decision fatigue and exhaustion',
     science:
-      'Alcohol is a sedative, not a sleep aid—it destroys REM sleep and wakes you at 3:00 AM with a racing heart. Your prefrontal cortex just needs permission to clock off.',
+      'Alcohol sedates you briefly but fragments deep sleep and wakes you early. Your body simply needs food, hydration, and proper rest.',
     immediateAction:
-      'Put on clean clothes immediately (signals the shift is over), eat Overnight Oats or eggs on toast, take a hot shower, and get your head on the pillow 90 minutes early.',
-    buttonLabel: 'Get 5-Min Recovery Protocol',
+      'Change out of work clothes straight away, eat a simple meal, take a warm shower, and get an early night.',
+    buttonLabel: 'Ask Cornerman for a wind-down plan',
   },
 };
 
 const BREATH_PHASES = [
-  { name: 'INHALE SLOWLY', sub: 'Expand belly & ribs through the nose', scale: 1.38, color: '#1BB1E7' },
-  { name: 'HOLD FULL', sub: 'Shoulders down, jaw unclenched', scale: 1.38, color: '#7A263A' },
-  { name: 'EXHALE CLEAN', sub: 'Release cortisol out through the mouth', scale: 0.88, color: '#1BB1E7' },
-  { name: 'HOLD EMPTY', sub: 'Steady the vagus nerve', scale: 0.88, color: '#7A263A' },
+  { name: 'Inhale slowly (4s)', sub: 'Breathe in gently through your nose', scale: 1.18, borderColor: '#0284C7' },
+  { name: 'Hold full (4s)', sub: 'Drop your shoulders and unclench your jaw', scale: 1.18, borderColor: '#7A263A' },
+  { name: 'Exhale cleanly (4s)', sub: 'Release slowly out through your mouth', scale: 0.92, borderColor: '#0284C7' },
+  { name: 'Hold steady (4s)', sub: 'Rest calmly before the next breath', scale: 0.92, borderColor: '#7A263A' },
 ];
 
 export const SOSModal: React.FC<SOSModalProps> = ({
@@ -86,39 +85,56 @@ export const SOSModal: React.FC<SOSModalProps> = ({
   onEscalateToCornerman,
   onJumpToFuel,
   onTriggerWitchingHourWebhook,
+  onCompleteReset,
 }) => {
+  const prefersReducedMotion = useReducedMotion();
   const [secondsLeft, setSecondsLeft] = useState<number>(60);
   const [isBreathingActive, setIsBreathingActive] = useState<boolean>(true);
-  const [phaseTick, setPhaseTick] = useState<number>(0); // 0..15 for 4x4s box
+  const [phaseTick, setPhaseTick] = useState<number>(0);
   const [selectedHalt, setSelectedHalt] = useState<HALTKey>('Hungry');
-  const [webhookSentBanner, setWebhookSentBanner] = useState<boolean>(false);
+  const [resetCompleted, setResetCompleted] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
       setSecondsLeft(60);
       setIsBreathingActive(true);
       setPhaseTick(0);
-      setWebhookSentBanner(false);
+      setResetCompleted(false);
     }
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !isBreathingActive || secondsLeft <= 0) return;
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (!isOpen || !isBreathingActive || secondsLeft <= 0) return;
     const timer = setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
       setPhaseTick((prev) => (prev + 1) % 16);
     }, 1000);
-
     return () => clearInterval(timer);
   }, [isOpen, isBreathingActive, secondsLeft]);
 
   if (!isOpen) return null;
 
-  const phaseIndex = Math.floor(phaseTick / 4); // 0, 1, 2, 3
+  const phaseIndex = Math.floor(phaseTick / 4);
   const phaseCountdown = 4 - (phaseTick % 4);
   const currentPhase = BREATH_PHASES[phaseIndex];
   const singleNightCost = Math.max(25, Math.round(weeklySpendGBP * 0.45));
+
+  const handleCompleteCravingReset = () => {
+    setResetCompleted(true);
+    onTriggerWitchingHourWebhook(selectedHalt);
+    if (onCompleteReset) {
+      onCompleteReset(selectedHalt);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -126,130 +142,135 @@ export const SOSModal: React.FC<SOSModalProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+        className="fixed inset-0 z-50 bg-[#121518]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="sos-modal-title"
       >
         <motion.div
-          initial={{ scale: 0.94, y: 20, opacity: 0 }}
+          initial={prefersReducedMotion ? { opacity: 1 } : { scale: 0.98, y: 8, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
-          exit={{ scale: 0.94, y: 20, opacity: 0 }}
-          transition={{ duration: 0.25 }}
-          className="relative w-full max-w-4xl bg-[#121518] border-2 border-[#E63946] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="relative w-full max-w-4xl bg-white border border-[#CBD5E1] rounded-2xl shadow-lg overflow-hidden my-auto max-h-[92vh] flex flex-col"
         >
-          {/* Top Crisis Banner */}
-          <div className="bg-gradient-to-r from-[#E63946] via-[#9E2A35] to-[#7A263A] px-5 py-4 flex items-center justify-between">
+          {/* Urgent Craving Reset Header */}
+          <div className="bg-[#FEF2F2] border-b border-[#FECACA] px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-black/30 text-white">
-                <ShieldAlert className="w-6 h-6" />
+              <div className="p-2 rounded-lg bg-[#DC2626] text-white">
+                <ShieldAlert className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] font-mono-metric uppercase tracking-widest text-white/90 block">
-                  EMERGENCY CRAVING DE-ESCALATION PROTOCOL • DAY {streakDays} AT STAKE
+                <span className="text-xs font-medium text-[#B91C1C] block">
+                  Immediate craving reset • Protecting day {streakDays}
                 </span>
                 <h2
                   id="sos-modal-title"
-                  className="font-display text-xl sm:text-2xl font-bold text-white tracking-wide"
+                  className="font-display text-xl sm:text-2xl font-bold text-[#121518]"
                 >
-                  5 PM SOS / WITCHING HOUR RESET
+                  Craving Reset (60-second pause)
                 </h2>
               </div>
             </div>
             <button
               id="close-sos-modal-btn"
               onClick={onClose}
-              className="p-2 rounded-lg bg-black/30 hover:bg-black/50 text-white transition cursor-pointer"
-              aria-label="Close SOS Modal"
+              className="p-2 rounded-lg bg-white hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#121518] transition cursor-pointer"
+              aria-label="Close Craving Reset modal"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Scrollable 4-Step Crisis Content */}
+          {/* Modal Content */}
           <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
-            {/* Grid of Step 1 (Box Breathing) + Step 2 (HALT Check) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* STEP 1: 60-SECOND BOX BREATHING */}
-              <div className="forge-card rounded-xl p-5 flex flex-col items-center justify-between text-center relative overflow-hidden">
+              {/* Step 1: 60-second Box Breathing */}
+              <div className="iron-surface p-5 flex flex-col items-center justify-between text-center">
                 <div className="w-full flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono-metric uppercase px-2.5 py-1 rounded bg-[#1BB1E7]/15 text-[#1BB1E7] border border-[#1BB1E7]/30 flex items-center gap-1.5">
-                    <Wind className="w-3.5 h-3.5" /> STEP 1: 60s BOX BREATHING
+                  <span className="text-xs font-semibold text-[#121518] flex items-center gap-1.5">
+                    <Wind className="w-4 h-4 text-[#0284C7]" /> Step 1: 4-4-4-4 box breathing
                   </span>
-                  <span className="font-mono-metric text-sm font-bold text-[#F8F9FA] flex items-center gap-1">
-                    <Clock className="w-4 h-4 text-[#1BB1E7]" /> {secondsLeft}s remaining
+                  <span className="font-mono-metric text-xs font-semibold text-[#334155] flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#7A263A]" /> {secondsLeft}s left
                   </span>
                 </div>
 
-                {/* Animated Breathing Circle */}
-                <div className="relative my-6 flex items-center justify-center w-48 h-48">
+                <div className="relative my-5 flex items-center justify-center w-44 h-44">
                   <motion.div
-                    animate={{
-                      scale: isBreathingActive && secondsLeft > 0 ? currentPhase.scale : 1,
-                      borderColor: currentPhase.color,
-                    }}
-                    transition={{ duration: 1, ease: 'easeInOut' }}
-                    className="w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center shadow-[0_0_40px_rgba(27,177,231,0.28)]"
-                    style={{
-                      background:
-                        phaseIndex % 2 === 0
-                          ? 'radial-gradient(circle, rgba(27,177,231,0.28) 0%, rgba(122,38,58,0.2) 100%)'
-                          : 'radial-gradient(circle, rgba(122,38,58,0.38) 0%, rgba(18,21,24,0.9) 100%)',
-                    }}
+                    animate={
+                      prefersReducedMotion
+                        ? { borderColor: currentPhase.borderColor }
+                        : {
+                            scale:
+                              isBreathingActive && secondsLeft > 0
+                                ? currentPhase.scale
+                                : 1,
+                            borderColor: currentPhase.borderColor,
+                          }
+                    }
+                    transition={{ duration: 0.9, ease: 'easeInOut' }}
+                    className="w-36 h-36 rounded-full bg-white border-4 flex flex-col items-center justify-center px-3"
                   >
-                    <span className="font-mono-metric text-3xl font-bold text-[#F8F9FA]">
-                      {secondsLeft > 0 ? `${phaseCountdown}s` : 'DONE'}
+                    <span className="font-mono-metric text-3xl font-bold text-[#121518]">
+                      {secondsLeft > 0 ? `${phaseCountdown}s` : 'Done'}
                     </span>
-                    <span className="font-display text-xs tracking-wider uppercase text-[#1BB1E7] mt-1 px-2">
-                      {secondsLeft > 0 ? currentPhase.name : 'NERVOUS SYSTEM STEADY'}
+                    <span className="text-xs font-semibold text-[#7A263A] mt-1">
+                      {secondsLeft > 0 ? currentPhase.name : 'Breathing steady'}
                     </span>
                   </motion.div>
                 </div>
 
-                <p className="text-xs text-[#94A3B8] mb-4">{currentPhase.sub}</p>
+                <p className="text-xs text-[#475569] mb-4">{currentPhase.sub}</p>
 
                 <div className="flex items-center gap-2 w-full">
                   <button
+                    type="button"
                     onClick={() => setIsBreathingActive((prev) => !prev)}
-                    className="flex-1 py-2 px-3 rounded-lg bg-[#1E2328] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-semibold text-[#F8F9FA] flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="iron-btn-secondary flex-1 py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Play className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    {isBreathingActive ? 'Pause Breath Timer' : 'Resume Breath Timer'}
+                    <Play className="w-3.5 h-3.5 text-[#7A263A]" />
+                    {isBreathingActive ? 'Pause timer' : 'Resume timer'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setSecondsLeft(60);
                       setPhaseTick(0);
                       setIsBreathingActive(true);
                     }}
-                    className="py-2 px-3 rounded-lg bg-[#1E2328] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-semibold text-[#94A3B8] hover:text-[#F8F9FA] flex items-center gap-1 transition cursor-pointer"
+                    className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" /> Reset 60s
                   </button>
                 </div>
               </div>
 
-              {/* STEP 2: HALT CHECK */}
-              <div className="forge-card rounded-xl p-5 flex flex-col justify-between">
+              {/* Step 2: HALT Check */}
+              <div className="iron-surface p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono-metric uppercase px-2.5 py-1 rounded bg-[#7A263A]/30 text-[#F8F9FA] border border-[#7A263A] flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-[#1BB1E7]" /> STEP 2: RAPID H.A.L.T. DIAGNOSTIC
+                    <span className="text-xs font-semibold text-[#121518]">
+                      Step 2: Quick HALT check
                     </span>
-                    <span className="text-[11px] text-[#94A3B8]">Tap what hits hardest</span>
+                    <span className="text-xs text-[#475569]">
+                      Select what feels strongest
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2 mb-4">
+                  <div className="grid grid-cols-4 gap-2 mb-4" role="group" aria-label="HALT states">
                     {(['Hungry', 'Angry', 'Lonely', 'Tired'] as HALTKey[]).map((key) => {
                       const active = selectedHalt === key;
                       return (
                         <button
                           key={key}
+                          type="button"
                           onClick={() => setSelectedHalt(key)}
-                          className={`py-2.5 px-2 rounded-lg font-display text-sm tracking-wide uppercase transition border cursor-pointer ${
+                          aria-pressed={active}
+                          className={`py-2 px-2 rounded-lg text-xs font-semibold transition border cursor-pointer ${
                             active
-                              ? 'bg-[#7A263A] text-white border-[#1BB1E7] shadow-md'
-                              : 'bg-[#121518] text-[#94A3B8] border-[#2E353D] hover:text-white'
+                              ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                              : 'bg-white text-[#334155] border-[#CBD5E1] hover:bg-[#F1F5F9]'
                           }`}
                         >
                           {key}
@@ -258,15 +279,15 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                     })}
                   </div>
 
-                  <div className="bg-[#121518] border border-[#2E353D] rounded-lg p-3.5 space-y-2">
-                    <div className="text-xs font-mono-metric font-bold text-[#1BB1E7]">
+                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 space-y-2">
+                    <div className="text-xs font-semibold text-[#7A263A]">
                       {HALT_PROTOCOLS[selectedHalt].headline}
                     </div>
-                    <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    <p className="text-xs text-[#334155] leading-relaxed">
                       {HALT_PROTOCOLS[selectedHalt].science}
                     </p>
-                    <div className="pt-2 border-t border-[#2E353D]/70 text-xs text-[#F8F9FA] font-medium">
-                      <span className="text-[#1BB1E7] font-bold">Chef’s Orders: </span>
+                    <div className="pt-2 border-t border-[#E2E8F0] text-xs text-[#121518]">
+                      <span className="font-semibold text-[#7A263A]">Next step: </span>
                       {HALT_PROTOCOLS[selectedHalt].immediateAction}
                     </div>
                   </div>
@@ -274,6 +295,17 @@ export const SOSModal: React.FC<SOSModalProps> = ({
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
+                    id="complete-craving-reset-btn"
+                    type="button"
+                    onClick={handleCompleteCravingReset}
+                    className="iron-btn-primary flex-1 py-2.5 px-4 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {resetCompleted ? 'Craving Reset completed' : 'Complete Craving Reset'}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       if (selectedHalt === 'Hungry') {
                         onClose();
@@ -281,99 +313,95 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                       } else {
                         onClose();
                         onEscalateToCornerman(
-                          `5 PM Craving Hit — I am feeling ${selectedHalt.toUpperCase()} right now on Day ${streakDays}. Talk me down mate.`
+                          `5 PM Craving Hit — I am feeling ${selectedHalt.toLowerCase()} right now on Day ${streakDays}. Talk me down mate.`
                         );
                       }
                     }}
-                    className="flex-1 py-2.5 px-4 rounded-lg bg-[#1BB1E7] hover:bg-[#1BB1E7]/90 text-[#121518] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="iron-btn-secondary py-2.5 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Utensils className="w-4 h-4" />
+                    <Utensils className="w-3.5 h-3.5 text-[#7A263A]" />
                     {HALT_PROTOCOLS[selectedHalt].buttonLabel}
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerWitchingHourWebhook(selectedHalt);
-                      setWebhookSentBanner(true);
-                    }}
-                    className="py-2.5 px-3 rounded-lg bg-[#1E2328] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-medium text-[#F8F9FA] transition cursor-pointer"
-                    title="Fires Friday 4:45 PM Witching Hour check-in alert to n8n / Twenty CRM"
-                  >
-                    Log 5 PM Check-In Alert
                   </button>
                 </div>
 
-                {webhookSentBanner && (
-                  <div className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Witching-Hour Craving Check-in logged & dispatched to n8n Accountability Webhook.
+                {resetCompleted && (
+                  <div
+                    role="status"
+                    className="mt-2 text-xs text-emerald-700 font-medium flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Craving Reset logged. Well held, mate.
                   </div>
                 )}
               </div>
             </div>
 
-            {/* STEP 3: PLAY THE TAPE FORWARD */}
-            <div className="forge-card-claret rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <FastForward className="w-4 h-4 text-[#1BB1E7]" />
-                <span className="text-xs font-mono-metric uppercase tracking-wider text-[#1BB1E7] font-bold">
-                  STEP 3: PLAY THE TAPE FORWARD — TONIGHT VS. TOMORROW 7:00 AM
+            {/* Step 3: Play the tape forward */}
+            <div className="iron-card p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <FastForward className="w-4 h-4 text-[#7A263A]" />
+                <span className="text-xs font-semibold text-[#121518]">
+                  Step 3: Play the tape forward — tonight vs. tomorrow at 7:00am
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-[#121518]/90 border border-[#E63946]/40 rounded-lg p-3.5">
-                  <div className="text-xs font-bold uppercase text-[#E63946] mb-1">
-                    IF YOU GIVE IN TO A 20-MINUTE CRAVING TONIGHT:
+                <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-3.5">
+                  <div className="text-xs font-semibold text-[#B91C1C] mb-1">
+                    If you give in to a fleeting craving tonight
                   </div>
-                  <p className="text-xs text-[#94A3B8] leading-relaxed">
-                    25 minutes of artificial numbness, followed by broken sleep, a 3:15 AM sweating cortisol spike, £{singleNightCost}+ gone from your account, and waking up tomorrow having to reset your **Day {streakDays}** counter back to zero with a pounding head.
+                  <p className="text-xs text-[#334155] leading-relaxed">
+                    20 minutes of numbness followed by broken sleep, £{singleNightCost}+ spent, and waking up tomorrow resetting your {streakDays}-day streak with a heavy head.
                   </p>
                 </div>
-                <div className="bg-[#121518]/90 border border-[#1BB1E7]/50 rounded-lg p-3.5">
-                  <div className="text-xs font-bold uppercase text-[#1BB1E7] mb-1">
-                    WHEN YOU HOLD THE LINE UNTIL YOUR HEAD HITS THE PILLOW:
+                <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-xl p-3.5">
+                  <div className="text-xs font-semibold text-[#0284C7] mb-1">
+                    When you hold the line tonight
                   </div>
-                  <p className="text-xs text-[#F8F9FA] leading-relaxed">
-                    Tomorrow at 7:00 AM you wake up with clean lungs, deep REM sleep in the bank, £{singleNightCost} still in your pocket, and **Day {streakDays + 1}** forged in iron. Nobody in history ever woke up at 7 AM wishing they had drunk the night before.
+                  <p className="text-xs text-[#121518] leading-relaxed">
+                    Tomorrow at 7:00am you wake up clear-headed, rested, £{singleNightCost} better off, and ready to log day {streakDays + 1}. Nobody ever woke up wishing they had drunk the night before.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* STEP 4: ONE-TAP ESCALATION */}
-            <div className="forge-card rounded-xl p-5">
+            {/* Step 4: One-tap escalation */}
+            <div className="iron-surface p-5">
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                <span className="text-xs font-mono-metric uppercase tracking-wider text-[#F8F9FA] font-bold flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-[#E63946]" /> STEP 4: ONE-TAP ESCALATION — DON’T WHITE-KNUCKLE THIS ALONE
+                <span className="text-xs font-semibold text-[#121518]">
+                  Step 4: One-tap support — you do not have to white-knuckle this alone
                 </span>
-                <span className="text-[11px] text-[#94A3B8]">Immediate 24/7 human & AI support</span>
+                <span className="text-xs text-[#475569]">
+                  24/7 companion and free UK helplines
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
+                  type="button"
                   onClick={() => {
                     onClose();
                     onEscalateToCornerman(
-                      `5 PM Craving Hit — Talk Me Down. I'm on Day ${streakDays} and feeling ${selectedHalt}.`
+                      `5 PM Craving Hit — Talk Me Down. I'm on Day ${streakDays} and feeling ${selectedHalt.toLowerCase()}.`
                     );
                   }}
-                  className="py-3 px-4 rounded-xl bg-[#7A263A] hover:bg-[#9E334D] text-white font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition cursor-pointer"
+                  className="iron-btn-primary py-2.5 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Bot className="w-4 h-4 text-[#1BB1E7]" />
-                  Open Ironclad Cornerman AI
+                  <Bot className="w-4 h-4" />
+                  Talk to Cornerman
                 </button>
 
                 <a
                   href="tel:116123"
-                  className="py-3 px-4 rounded-xl bg-[#1E2328] hover:bg-[#2E353D] border border-[#1BB1E7]/50 text-[#F8F9FA] font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
+                  className="iron-btn-secondary py-2.5 px-4 text-xs flex items-center justify-center gap-2"
                 >
-                  <PhoneCall className="w-4 h-4 text-[#1BB1E7]" />
-                  Dial Samaritans (116 123)
+                  <PhoneCall className="w-4 h-4 text-[#7A263A]" />
+                  Call Samaritans (116 123)
                 </a>
 
                 <a
                   href="tel:0800585858"
-                  className="py-3 px-4 rounded-xl bg-[#1E2328] hover:bg-[#2E353D] border border-[#E63946]/60 text-[#F8F9FA] font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
+                  className="iron-btn-secondary py-2.5 px-4 text-xs flex items-center justify-center gap-2"
                 >
-                  <PhoneCall className="w-4 h-4 text-[#E63946]" />
-                  Dial CALM UK (0800 58 58 58)
+                  <PhoneCall className="w-4 h-4 text-[#DC2626]" />
+                  Call CALM (0800 58 58 58)
                 </a>
               </div>
             </div>

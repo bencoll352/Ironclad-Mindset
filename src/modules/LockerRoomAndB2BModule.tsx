@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   Copy,
   FileSignature,
-  Flame,
   Hammer,
   MessageSquare,
   Printer,
@@ -30,7 +29,9 @@ interface LockerRoomAndB2BModuleProps {
   onSendIron: (postId: string) => void;
   onAddReply: (postId: string, author: string, content: string) => void;
   b2bLeads: B2BLeadSubmission[];
-  onSubmitB2BLead: (lead: Omit<B2BLeadSubmission, 'id' | 'createdAt' | 'webhookStatus'>) => void;
+  onSubmitB2BLead: (
+    lead: Omit<B2BLeadSubmission, 'id' | 'createdAt' | 'webhookStatus'>
+  ) => void;
 }
 
 const CHANNELS: LockerChannel[] = [
@@ -81,9 +82,6 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
     useState<B2BLeadSubmission | null>(b2bLeads[0] || null);
   const [copiedProposal, setCopiedProposal] = useState<boolean>(false);
 
-  // UK Alcohol & Burnout ROI Formula:
-  // UK CIPD & Alcohol Change data estimates ~4.4 lost absenteeism + presenteeism days per employee/year in shift & high-stress sectors,
-  // and Ironclad workplace intervention reduces alcohol/burnout-related lost days by ~38%.
   const annualLostDaysBaseline = Math.round(employeeCount * 4.4);
   const annualGrossLossGBP = annualLostDaysBaseline * dailyBurnoutCostGBP;
   const estimatedAnnualSavingsGBP = Math.round(annualGrossLossGBP * 0.38);
@@ -150,12 +148,12 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
   const handleCopyProposal = () => {
     if (!latestProposal) return;
     const text = [
-      `IRONCLAD MINDSET — CORPORATE WELLNESS & SOBER-INCLUSIVE PROPOSAL`,
-      `Prepared For: ${latestProposal.companyName} (${latestProposal.contactName})`,
-      `Sector: ${latestProposal.sector} | Workforce Size: ${latestProposal.employeeCount} staff`,
+      `Ironclad Mindset — Corporate Wellness & Sober-Inclusive Proposal`,
+      `Prepared for: ${latestProposal.companyName} (${latestProposal.contactName})`,
+      `Sector: ${latestProposal.sector} | Workforce size: ${latestProposal.employeeCount} staff`,
       `Package: ${latestProposal.packageInterest}`,
-      `Estimated Annual Absenteeism & Presenteeism Savings: £${latestProposal.estimatedAnnualSavingsGBP.toLocaleString()}/year`,
-      `DocuSeal Sober-Inclusive Policy Charter: ${
+      `Estimated annual savings: £${latestProposal.estimatedAnnualSavingsGBP.toLocaleString()}/year`,
+      `DocuSeal charter: ${
         latestProposal.docuSealSigned ? 'Signed & Ready' : 'Pending Sign-off'
       }`,
     ].join('\n');
@@ -166,57 +164,55 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Sub-Navigation Switcher: Tab A (The Locker Room) vs Tab B (B2B Corporate Wellness Portal) */}
-      <div className="forge-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header & Sub-Navigation Switcher */}
+      <section className="iron-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-mono-metric uppercase text-[#1BB1E7]">
-            PEER ACCOUNTABILITY & CORPORATE WELLNESS ENGINE
+          <span className="text-xs font-semibold text-[#7A263A]">
+            Peer community & workplace tools
           </span>
-          <h1 className="font-display text-2xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-            THE LOCKER ROOM & B2B PORTAL
+          <h1 className="font-display text-2xl font-bold text-[#121518] mt-0.5">
+            The Locker Room & B2B Portal
           </h1>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 bg-[#121518] p-1.5 rounded-xl border border-[#2E353D]">
+        <div className="grid grid-cols-2 gap-2 bg-[#F8FAFC] p-1.5 rounded-xl border border-[#E2E8F0]">
           <button
             id="tab-locker-room-btn"
+            type="button"
             onClick={() => setActiveTab('locker')}
-            className={`py-2.5 px-4 rounded-lg font-display text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+            className={`py-2 px-4 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
               activeTab === 'locker'
-                ? 'bg-[#7A263A] text-white shadow-md border border-[#1BB1E7]/50'
-                : 'text-[#94A3B8] hover:text-white'
+                ? 'bg-[#7A263A] text-white'
+                : 'text-[#334155] hover:text-[#121518]'
             }`}
           >
-            <Users className="w-4 h-4 text-[#1BB1E7]" />
-            Tab A: The Locker Room
+            <Users className="w-4 h-4" />
+            Locker Room
           </button>
 
           <button
             id="tab-b2b-portal-btn"
+            type="button"
             onClick={() => setActiveTab('b2b')}
-            className={`py-2.5 px-4 rounded-lg font-display text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+            className={`py-2 px-4 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
               activeTab === 'b2b'
-                ? 'bg-[#7A263A] text-white shadow-md border border-[#1BB1E7]/50'
-                : 'text-[#94A3B8] hover:text-white'
+                ? 'bg-[#7A263A] text-white'
+                : 'text-[#334155] hover:text-[#121518]'
             }`}
           >
-            <Building2 className="w-4 h-4 text-[#1BB1E7]" />
-            Tab B: B2B ROI & Portal
+            <Building2 className="w-4 h-4" />
+            Workplace ROI & B2B
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* ================================================================= */}
-      {/* TAB A: THE LOCKER ROOM COMMUNITY WALL                             */}
-      {/* ================================================================= */}
+      {/* Tab A: The Locker Room Community Wall */}
       {activeTab === 'locker' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Channels + Post Composer */}
           <div className="lg:col-span-4 space-y-5">
-            {/* Channel Selector */}
-            <div className="forge-card rounded-2xl p-5 space-y-3">
-              <div className="text-xs font-mono-metric uppercase text-[#1BB1E7]">
-                LOCKER ROOM CHANNELS
+            <div className="iron-card p-5 space-y-3">
+              <div className="text-xs font-semibold text-[#121518]">
+                Community channels
               </div>
               <div className="space-y-1.5">
                 {CHANNELS.map((ch) => {
@@ -224,15 +220,20 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
                   return (
                     <button
                       key={ch}
+                      type="button"
                       onClick={() => setSelectedChannel(ch)}
-                      className={`w-full text-left px-3.5 py-2.5 rounded-xl font-mono-metric text-xs flex items-center justify-between transition border cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-medium flex items-center justify-between transition border cursor-pointer ${
                         active
-                          ? 'bg-[#7A263A] text-white border-[#1BB1E7]'
-                          : 'bg-[#121518] text-[#94A3B8] border-[#2E353D] hover:text-white'
+                          ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                          : 'bg-white text-[#334155] border-[#CBD5E1] hover:bg-[#F8FAFC]'
                       }`}
                     >
-                      <span>{ch === 'all' ? 'All Channels (Live Feed)' : ch}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-black/30">
+                      <span>{ch === 'all' ? 'All channels' : ch}</span>
+                      <span
+                        className={`text-[11px] px-2 py-0.5 rounded font-mono-metric ${
+                          active ? 'bg-white/20 text-white' : 'bg-[#F1F5F9] text-[#334155]'
+                        }`}
+                      >
                         {ch === 'all'
                           ? posts.length
                           : posts.filter((p) => p.channel === ch).length}
@@ -243,28 +244,27 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
               </div>
             </div>
 
-            {/* Post Check-in Form */}
             <form
               onSubmit={handlePostSubmit}
-              className="forge-card-claret rounded-2xl p-5 space-y-3.5"
+              className="iron-surface p-5 space-y-3.5"
             >
-              <div className="text-xs font-mono-metric uppercase text-[#1BB1E7] font-bold">
-                POST SHIFT CHECK-IN • DAY {streakDays}
+              <div className="text-xs font-semibold text-[#7A263A]">
+                Share a shift check-in • Day {streakDays}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="text"
                   value={authorHandle}
                   onChange={(e) => setAuthorHandle(e.target.value)}
-                  placeholder="Your Handle"
-                  className="px-3 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                  placeholder="Your handle"
+                  className="px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                 />
                 <input
                   type="text"
                   value={authorRole}
                   onChange={(e) => setAuthorRole(e.target.value)}
-                  placeholder="Role & UK City"
-                  className="px-3 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                  placeholder="Role & UK city"
+                  className="px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                 />
               </div>
 
@@ -275,7 +275,7 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
                     e.target.value as Exclude<LockerChannel, 'all'>
                   )
                 }
-                className="w-full px-3 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs font-mono-metric text-[#1BB1E7]"
+                className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
               >
                 <option value="#day-1-starters">#day-1-starters</option>
                 <option value="#kitchen-and-shift-workers">
@@ -289,95 +289,91 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
                 rows={4}
                 value={postContent}
                 onChange={(e) => setPostContent(e.target.value)}
-                placeholder="Share a shift win, how you handled a 5 PM craving, or a matchday check-in..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA] focus:border-[#1BB1E7] outline-none"
+                placeholder="Share a shift win, how you handled a 5pm craving, or a matchday check-in..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs text-[#121518]"
               />
 
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 rounded-xl bg-[#1BB1E7] hover:bg-[#1BB1E7]/90 text-[#121518] font-display text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
+                className="iron-btn-primary w-full py-2.5 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
-                POST TO THE LOCKER ROOM
+                Post to Locker Room
               </button>
             </form>
           </div>
 
-          {/* Right Column: Community Feed */}
           <div className="lg:col-span-8 space-y-4">
             {filteredPosts.map((post) => (
-              <div
+              <article
                 key={post.id}
-                className="forge-card rounded-2xl p-5 space-y-4"
+                className="iron-card p-5 space-y-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#7A263A] border border-[#1BB1E7]/50 flex items-center justify-center font-display text-sm font-bold text-white">
+                    <div className="w-10 h-10 rounded-xl bg-[#7A263A] flex items-center justify-center font-display text-sm font-bold text-white">
                       {post.author.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#F8F9FA]">
+                        <span className="font-bold text-sm text-[#121518]">
                           {post.author}
                         </span>
-                        <span className="text-[10px] font-mono-metric px-2 py-0.5 rounded bg-[#1BB1E7]/15 text-[#1BB1E7] border border-[#1BB1E7]/30">
-                          Day {post.streakDays} Forged
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#FDF2F4] text-[#7A263A]">
+                          Day {post.streakDays}
                         </span>
                       </div>
-                      <span className="text-xs text-[#94A3B8]">
+                      <span className="text-xs text-[#475569]">
                         {post.roleBadge} • {post.timestamp}
                       </span>
                     </div>
                   </div>
 
-                  <span className="text-xs font-mono-metric px-2.5 py-1 rounded-lg bg-[#121518] border border-[#2E353D] text-[#1BB1E7]">
+                  <span className="text-xs font-mono-metric px-2.5 py-1 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[#0284C7]">
                     {post.channel}
                   </span>
                 </div>
 
-                <p className="text-xs sm:text-sm text-[#F8F9FA]/95 leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#334155] leading-relaxed">
                   {post.content}
                 </p>
 
-                {/* Send Iron Fist-Bump Button + Reply Count */}
-                <div className="flex items-center justify-between pt-2 border-t border-[#2E353D]">
+                <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0]">
                   <button
+                    type="button"
                     onClick={() => onSendIron(post.id)}
-                    className={`py-2 px-4 rounded-xl font-display text-xs uppercase tracking-wider flex items-center gap-2 transition border cursor-pointer ${
+                    className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-2 transition border cursor-pointer ${
                       post.userSentIron
-                        ? 'bg-[#7A263A] text-white border-[#1BB1E7] shadow-md'
-                        : 'bg-[#121518] text-[#F8F9FA] border-[#2E353D] hover:border-[#1BB1E7]'
+                        ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                        : 'bg-white text-[#121518] border-[#CBD5E1] hover:bg-[#F8FAFC]'
                     }`}
                   >
-                    <Hammer className="w-4 h-4 text-[#1BB1E7]" />
-                    SEND IRON ({post.ironCount})
+                    <Hammer className="w-4 h-4" />
+                    Send Iron ({post.ironCount})
                   </button>
 
-                  <span className="text-xs font-mono-metric text-[#94A3B8] flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    {post.replies.length} Peer Replies
+                  <span className="text-xs text-[#475569] flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-[#7A263A]" />
+                    {post.replies.length} replies
                   </span>
                 </div>
 
-                {/* Replies + Quick Reply Input */}
                 <div className="space-y-2 pt-2">
                   {post.replies.map((rep) => (
                     <div
                       key={rep.id}
-                      className="bg-[#121518] border border-[#2E353D] rounded-xl p-3 text-xs space-y-1"
+                      className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3 text-xs space-y-1"
                     >
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-[#1BB1E7]">
+                        <span className="font-semibold text-[#121518]">
                           {rep.author}{' '}
-                          <span className="font-normal text-[#94A3B8]">
+                          <span className="font-normal text-[#475569]">
                             ({rep.roleBadge})
                           </span>
                         </span>
-                        <span className="font-mono-metric text-[#94A3B8]">
-                          {rep.timestamp}
-                        </span>
+                        <span className="text-[#475569]">{rep.timestamp}</span>
                       </div>
-                      <p className="text-[#F8F9FA]/90">{rep.content}</p>
+                      <p className="text-[#334155]">{rep.content}</p>
                     </div>
                   ))}
 
@@ -391,55 +387,56 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
                           [post.id]: e.target.value,
                         })
                       }
-                      placeholder="Back your mate up with a reply..."
-                      className="flex-1 px-3 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA] focus:border-[#1BB1E7] outline-none"
+                      placeholder="Write a supportive reply..."
+                      className="flex-1 px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                     />
                     <button
                       type="button"
                       onClick={() => handleReplySubmit(post.id)}
-                      className="px-3.5 py-2 rounded-lg bg-[#1E2328] hover:bg-[#7A263A] border border-[#2E353D] text-xs font-semibold text-[#F8F9FA] transition cursor-pointer"
+                      className="iron-btn-secondary px-3.5 py-2 text-xs cursor-pointer"
                     >
                       Reply
                     </button>
                   </div>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         </div>
       )}
 
-      {/* ================================================================= */}
-      {/* TAB B: B2B CORPORATE WELLNESS & ROI CALCULATOR                    */}
-      {/* ================================================================= */}
+      {/* Tab B: B2B Corporate Wellness & ROI Calculator */}
       {activeTab === 'b2b' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Interactive B2B ROI Calculator */}
-            <div className="lg:col-span-6 forge-card rounded-2xl p-5 sm:p-6 space-y-5">
+            <section className="lg:col-span-6 iron-card p-5 sm:p-6 space-y-5">
               <div>
-                <span className="text-xs font-mono-metric uppercase text-[#1BB1E7] flex items-center gap-1.5">
-                  <Calculator className="w-4 h-4" /> UK SME & SHIFT WORKFORCE ROI CALCULATOR
+                <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
+                  <Calculator className="w-4 h-4" /> UK SME & shift workforce ROI calculator
                 </span>
-                <h2 className="font-display text-xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-                  QUANTIFY THE COST OF SILENT BURNOUT & HANGOVERS
+                <h2 className="font-display text-xl font-bold text-[#121518] mt-0.5">
+                  Estimate workplace burnout & absence savings
                 </h2>
-                <p className="text-xs text-[#94A3B8] mt-1">
-                  Alcohol-related absenteeism, Monday/Saturday shift no-shows, and burnout cost UK employers £7.3bn annually. Slide your workforce numbers below.
+                <p className="text-xs text-[#475569] mt-1">
+                  Adjust your team size and daily absence cost below. Personal on-device check-ins from individual users are never shared with workplace reports.
                 </p>
               </div>
 
-              <div className="space-y-4 bg-[#121518] border border-[#2E353D] rounded-xl p-4">
+              <div className="space-y-4 iron-surface p-4">
                 <div>
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="font-semibold text-[#F8F9FA]">
-                      Number of UK Employees / Shift Staff
-                    </span>
-                    <span className="font-mono-metric font-bold text-[#1BB1E7]">
+                    <label
+                      htmlFor="b2b-employee-slider"
+                      className="font-semibold text-[#121518]"
+                    >
+                      Number of employees / shift staff
+                    </label>
+                    <span className="font-mono-metric font-bold text-[#7A263A]">
                       {employeeCount} staff
                     </span>
                   </div>
                   <input
+                    id="b2b-employee-slider"
                     type="range"
                     min={5}
                     max={500}
@@ -452,14 +449,18 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
 
                 <div>
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="font-semibold text-[#F8F9FA]">
-                      Average Daily Sick / Agency Cover / Burnout Cost (£)
-                    </span>
-                    <span className="font-mono-metric font-bold text-[#1BB1E7]">
+                    <label
+                      htmlFor="b2b-cost-slider"
+                      className="font-semibold text-[#121518]"
+                    >
+                      Average daily absence / cover cost (£)
+                    </label>
+                    <span className="font-mono-metric font-bold text-[#7A263A]">
                       £{dailyBurnoutCostGBP} / day
                     </span>
                   </div>
                   <input
+                    id="b2b-cost-slider"
                     type="range"
                     min={80}
                     max={450}
@@ -473,110 +474,108 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
                 </div>
               </div>
 
-              {/* ROI Telemetry Output Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-[#121518] border border-[#E63946]/40 rounded-xl p-3.5">
-                  <div className="text-[10px] font-mono-metric uppercase text-[#94A3B8]">
-                    EST. ANNUAL BURNOUT LOSS
+                <div className="iron-surface p-3.5">
+                  <div className="text-[11px] text-[#475569]">
+                    Est. annual burnout cost
                   </div>
-                  <div className="font-mono-metric text-xl font-bold text-[#E63946] mt-1">
+                  <div className="font-mono-metric text-xl font-bold text-[#121518] mt-1">
                     £{annualGrossLossGBP.toLocaleString()}
                   </div>
-                  <div className="text-[10px] text-[#94A3B8] mt-0.5">
+                  <div className="text-[11px] text-[#475569] mt-0.5">
                     ~{annualLostDaysBaseline} lost shift days/yr
                   </div>
                 </div>
 
-                <div className="bg-[#121518] border border-emerald-500/50 rounded-xl p-3.5">
-                  <div className="text-[10px] font-mono-metric uppercase text-[#94A3B8]">
-                    EST. ANNUAL SAVINGS (38%)
+                <div className="bg-[#FDF2F4] border border-[#7A263A]/30 rounded-xl p-3.5">
+                  <div className="text-[11px] font-semibold text-[#7A263A]">
+                    Est. annual savings (38%)
                   </div>
-                  <div className="font-mono-metric text-xl font-bold text-emerald-400 mt-1">
+                  <div className="font-mono-metric text-xl font-bold text-[#7A263A] mt-1">
                     £{estimatedAnnualSavingsGBP.toLocaleString()}
                   </div>
-                  <div className="text-[10px] text-emerald-300 mt-0.5">
+                  <div className="text-[11px] text-[#334155] mt-0.5">
                     {estimatedDaysRecovered} shift days recovered
                   </div>
                 </div>
 
-                <div className="bg-[#121518] border border-[#1BB1E7]/50 rounded-xl p-3.5">
-                  <div className="text-[10px] font-mono-metric uppercase text-[#94A3B8]">
-                    NET B2B ROI MULTIPLIER
+                <div className="iron-surface-selected p-3.5">
+                  <div className="text-[11px] font-semibold text-[#0284C7]">
+                    Estimated ROI multiplier
                   </div>
-                  <div className="font-mono-metric text-xl font-bold text-[#1BB1E7] mt-1">
+                  <div className="font-mono-metric text-xl font-bold text-[#121518] mt-1">
                     {roiMultiplier}x ROI
                   </div>
-                  <div className="text-[10px] text-[#94A3B8] mt-0.5">
-                    Est. Investment: £{programInvestmentGBP.toLocaleString()}
+                  <div className="text-[11px] text-[#334155] mt-0.5">
+                    Investment: £{programInvestmentGBP.toLocaleString()}
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* B2B Lead Capture + n8n / Twenty CRM / DocuSeal Trigger Form */}
             <form
               onSubmit={handleB2BFormSubmit}
-              className="lg:col-span-6 forge-card-claret rounded-2xl p-5 sm:p-6 space-y-4"
+              className="lg:col-span-6 iron-card p-5 sm:p-6 space-y-4"
             >
               <div>
-                <span className="text-xs font-mono-metric uppercase text-[#1BB1E7]">
-                  N8N + TWENTY CRM + DOCUSEAL AUTOMATED PIPELINE
+                <span className="text-xs font-semibold text-[#7A263A]">
+                  Workplace workshops & team licences
                 </span>
-                <h2 className="font-display text-xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-                  BOOK AN IRONCLAD WORKPLACE WORKSHOP OR LICENSES
+                <h2 className="font-display text-xl font-bold text-[#121518] mt-0.5">
+                  Generate a custom workplace proposal
                 </h2>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                    Company / Venue Name
+                  <label className="text-xs font-medium text-[#334155] block mb-1">
+                    Company or venue name
                   </label>
                   <input
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                    className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                    Decision Maker Name
+                  <label className="text-xs font-medium text-[#334155] block mb-1">
+                    Contact name
                   </label>
                   <input
                     type="text"
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                    className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                    Work Email (For PDF Proposal Dispatch)
+                  <label className="text-xs font-medium text-[#334155] block mb-1">
+                    Work email
                   </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                    className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                    UK Industry Sector
+                  <label className="text-xs font-medium text-[#334155] block mb-1">
+                    UK industry sector
                   </label>
                   <select
                     value={sector}
                     onChange={(e) =>
                       setSector(e.target.value as B2BLeadSubmission['sector'])
                     }
-                    className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#F8F9FA]"
+                    className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                   >
                     <option value="Hospitality & Kitchens">
                       Hospitality & Kitchens
@@ -595,8 +594,8 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-mono-metric uppercase text-[#94A3B8] block mb-1">
-                  Ironclad B2B Package
+                <label className="text-xs font-medium text-[#334155] block mb-1">
+                  Workplace package
                 </label>
                 <select
                   value={packageInterest}
@@ -605,132 +604,126 @@ export const LockerRoomAndB2BModule: React.FC<LockerRoomAndB2BModuleProps> = ({
                       e.target.value as B2BLeadSubmission['packageInterest']
                     )
                   }
-                  className="w-full px-3.5 py-2 rounded-lg bg-[#121518] border border-[#2E353D] text-xs text-[#1BB1E7] font-semibold"
+                  className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518] font-medium"
                 >
                   <option value="Full Sober-Inclusive Charter + Workshop">
-                    Full Sober-Inclusive Charter + On-Site Founder Workshop + App Licenses
+                    Full Sober-Inclusive Charter + On-Site Workshop + Team Licences
                   </option>
                   <option value="Ironclad Workplace Workshop">
-                    Ironclad Workplace Workshop (Half-Day Kitchen/Site Session)
+                    Ironclad Workplace Workshop (Half-day kitchen or site session)
                   </option>
                   <option value="Team App Licenses">
-                    Team App Licenses (24/7 Cornerman + Mood-Food Hub)
+                    Team App Licences
                   </option>
                 </select>
               </div>
 
-              {/* DocuSeal Policy Charter Sign-Off Toggle */}
               <label
                 onClick={() => setDocuSealSigned((prev) => !prev)}
-                className="flex items-center gap-3 p-3 rounded-xl bg-[#121518] border border-[#1BB1E7]/40 cursor-pointer select-none"
+                className="flex items-center gap-3 p-3 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] cursor-pointer select-none"
               >
                 <div
-                  className={`w-5 h-5 rounded flex items-center justify-center border ${
+                  className={`w-4 h-4 rounded flex items-center justify-center border ${
                     docuSealSigned
-                      ? 'bg-[#1BB1E7] border-[#1BB1E7] text-[#121518]'
-                      : 'border-[#94A3B8]'
+                      ? 'bg-[#7A263A] border-[#7A263A] text-white'
+                      : 'border-[#94A3B8] bg-white'
                   }`}
                 >
                   {docuSealSigned && (
-                    <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                    <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
                   )}
                 </div>
-                <div className="text-xs">
-                  <span className="font-bold text-[#F8F9FA] flex items-center gap-1.5">
-                    <FileSignature className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    Include DocuSeal Digital Sign-Off for Playbook 5 (UK Sober-Inclusive Workplace Policy)
-                  </span>
-                </div>
+                <span className="text-xs font-medium text-[#121518] flex items-center gap-1.5">
+                  <FileSignature className="w-3.5 h-3.5 text-[#7A263A]" />
+                  Include DocuSeal sign-off for Playbook 5 (Sober-Inclusive Workplace Policy)
+                </span>
               </label>
 
               <button
                 id="submit-b2b-proposal-btn"
                 type="submit"
-                className="w-full py-3 px-5 rounded-xl bg-[#1BB1E7] hover:bg-[#1BB1E7]/90 text-[#121518] font-display text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition cursor-pointer"
+                className="iron-btn-primary w-full py-3 px-5 text-xs sm:text-sm cursor-pointer"
               >
-                <Flame className="w-4 h-4" />
-                GENERATE CUSTOM B2B PROPOSAL & FIRE N8N / TWENTY CRM WEBHOOK
+                Generate workplace proposal & dispatch webhook
               </button>
             </form>
           </div>
 
-          {/* Instant Customized Corporate Wellness Proposal Preview */}
           {latestProposal && (
-            <div className="forge-card-sky rounded-2xl p-6 space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#2E353D] pb-4">
+            <section className="iron-card p-6 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
                 <div>
-                  <span className="text-xs font-mono-metric uppercase text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> N8N & TWENTY CRM PAYLOAD DISPATCHED • INSTANT PROPOSAL PREVIEW
+                  <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" /> Proposal generated & webhook logged
                   </span>
-                  <h3 className="font-display text-xl sm:text-2xl font-bold text-[#F8F9FA] uppercase mt-0.5">
-                    IRONCLAD CORPORATE WELLNESS PROPOSAL FOR:{' '}
-                    <span className="text-[#1BB1E7]">
-                      {latestProposal.companyName}
-                    </span>
+                  <h3 className="font-display text-xl font-bold text-[#121518] mt-0.5">
+                    Workplace proposal for {latestProposal.companyName}
                   </h3>
                 </div>
 
                 <div className="flex items-center gap-2 no-print">
                   <button
+                    type="button"
                     onClick={handleCopyProposal}
-                    className="py-2 px-3.5 rounded-lg bg-[#121518] hover:bg-[#1E2328] border border-[#2E353D] text-xs font-semibold text-[#F8F9FA] flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-secondary py-2 px-3.5 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Copy className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    {copiedProposal ? 'Copied Proposal!' : 'Copy Proposal'}
+                    <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
+                    {copiedProposal ? 'Copied' : 'Copy proposal'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => window.print()}
-                    className="py-2 px-3.5 rounded-lg bg-[#7A263A] hover:bg-[#9E334D] text-xs font-semibold text-white flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-primary py-2 px-3.5 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Printer className="w-3.5 h-3.5 text-[#1BB1E7]" />
-                    Print / Export PDF Proposal
+                    <Printer className="w-3.5 h-3.5" />
+                    Print / Save PDF
                   </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-4 space-y-1.5">
-                  <div className="text-[10px] font-mono-metric uppercase text-[#1BB1E7]">
-                    1. CLIENT & SECTOR PROFILE
+                <div className="iron-surface p-4 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-[#7A263A]">
+                    1. Client profile
                   </div>
-                  <div className="text-sm font-bold text-[#F8F9FA]">
+                  <div className="text-sm font-bold text-[#121518]">
                     {latestProposal.companyName}
                   </div>
-                  <div className="text-[#94A3B8]">
-                    Lead Contact: {latestProposal.contactName} ({latestProposal.email})
+                  <div className="text-[#334155]">
+                    Contact: {latestProposal.contactName} ({latestProposal.email})
                   </div>
-                  <div className="text-[#94A3B8]">
+                  <div className="text-[#475569]">
                     Sector: {latestProposal.sector} ({latestProposal.employeeCount} staff)
                   </div>
                 </div>
 
-                <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-4 space-y-1.5">
-                  <div className="text-[10px] font-mono-metric uppercase text-[#1BB1E7]">
-                    2. PROJECTED FINANCIAL IMPACT
+                <div className="iron-surface p-4 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-[#7A263A]">
+                    2. Projected annual savings
                   </div>
-                  <div className="text-lg font-mono-metric font-bold text-emerald-400">
-                    £{latestProposal.estimatedAnnualSavingsGBP.toLocaleString()} / yr saved
+                  <div className="text-lg font-mono-metric font-bold text-[#7A263A]">
+                    £{latestProposal.estimatedAnnualSavingsGBP.toLocaleString()} / year
                   </div>
-                  <div className="text-[#94A3B8]">
-                    Based on £{latestProposal.dailyBurnoutCostGBP}/day shift absence cost & 38% reduction in alcohol/burnout-related lost days.
+                  <div className="text-[#334155]">
+                    Based on £{latestProposal.dailyBurnoutCostGBP}/day shift absence cost.
                   </div>
                 </div>
 
-                <div className="bg-[#121518] border border-[#2E353D] rounded-xl p-4 space-y-1.5">
-                  <div className="text-[10px] font-mono-metric uppercase text-[#1BB1E7]">
-                    3. DEPLOYMENT & DOCUSEAL STATUS
+                <div className="iron-surface p-4 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-[#7A263A]">
+                    3. Package & charter status
                   </div>
-                  <div className="font-bold text-[#F8F9FA]">
+                  <div className="font-bold text-[#121518]">
                     {latestProposal.packageInterest}
                   </div>
-                  <div className="text-emerald-400 font-mono-metric text-[11px]">
+                  <div className="text-emerald-700 font-medium text-[11px]">
                     {latestProposal.docuSealSigned
-                      ? '✓ Playbook 5 Sober-Inclusive Charter Attached via DocuSeal'
-                      : 'Standard Workshop Deployment'}
+                      ? '✓ Playbook 5 Sober-Inclusive Charter attached via DocuSeal'
+                      : 'Standard workshop deployment'}
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
           )}
         </div>
       )}

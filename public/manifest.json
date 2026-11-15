@@ -1,21 +1,22 @@
 {
   "name": "Ironclad Mindset — Forged in Struggle. Built for Strength.",
   "short_name": "Ironclad",
-  "description": "Zero corporate fluff. Zero judgment. Ironclad accountability, proper brain-fuel nutrition, and a 24/7 AI Cornerman in your pocket.",
-  "start_url": "/",
+  "description": "Zero corporate fluff. Practical sobriety accountability, brain-fuel nutrition, and a 24/7 recovery companion.",
+  "start_url": "/Ironclad-Mindset/",
+  "scope": "/Ironclad-Mindset/",
   "display": "standalone",
-  "background_color": "#121518",
+  "background_color": "#FFFFFF",
   "theme_color": "#7A263A",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/Ironclad-Mindset/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/ironclad-badge.jpg",
+      "src": "/Ironclad-Mindset/ironclad-badge.jpg",
       "sizes": "512x512",
       "type": "image/jpeg"
     }

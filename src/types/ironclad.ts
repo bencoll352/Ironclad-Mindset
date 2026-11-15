@@ -1,3 +1,8 @@
+import {
+  CornermanActionId,
+  ValidatedCornermanCitation,
+} from '../services/cornermanEngine';
+
 export type ModuleId =
   | 'forge'
   | 'cornerman'
@@ -15,21 +20,12 @@ export interface NonNegotiableTask {
 
 export interface DailyForgeLog {
   date: string; // YYYY-MM-DD
-  dayLabel: string; // e.g., 'Mon', 'Tue'
-  mood: number; // 1-10
-  sleep: number; // 1-10
-  craving: number; // 1-10
+  dayLabel: string;
+  mood: number;
+  sleep: number;
+  craving: number;
   completedTasks: number;
   notes?: string;
-}
-
-export interface MilestoneBadge {
-  id: string;
-  daysRequired: number;
-  title: string;
-  subtitle: string;
-  description: string;
-  iconName: string;
 }
 
 export type RecipeCategory =
@@ -149,19 +145,15 @@ export interface CommunityPost {
   }[];
 }
 
-export interface CornermanCitation {
-  id: string;
-  type: 'Playbook' | 'Recipe' | 'Protocol';
-  title: string;
-  referenceId: string;
-}
-
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'cornerman';
   timestamp: string;
   text: string;
-  citations?: CornermanCitation[];
+  citations?: ValidatedCornermanCitation[];
+  action?: CornermanActionId;
+  statusNotice?: string;
+  isSafetyEscalation?: boolean;
   isGeneratedRecipe?: boolean;
 }
 
@@ -170,18 +162,24 @@ export interface B2BLeadSubmission {
   companyName: string;
   contactName: string;
   email: string;
-  sector: 'Hospitality & Kitchens' | 'Construction & Trades' | 'Logistics & Shift Work' | 'Corporate & Tech SME';
+  sector:
+    | 'Hospitality & Kitchens'
+    | 'Construction & Trades'
+    | 'Logistics & Shift Work'
+    | 'Corporate & Tech SME';
   employeeCount: number;
   dailyBurnoutCostGBP: number;
   estimatedAnnualSavingsGBP: number;
-  packageInterest: 'Ironclad Workplace Workshop' | 'Team App Licenses' | 'Full Sober-Inclusive Charter + Workshop';
+  packageInterest:
+    | 'Ironclad Workplace Workshop'
+    | 'Team App Licenses'
+    | 'Full Sober-Inclusive Charter + Workshop';
   docuSealSigned: boolean;
   createdAt: string;
   webhookStatus: 'delivered' | 'simulated_local';
 }
 
 export interface IntegrationConfig {
-  geminiApiKey: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
   n8nWebhookUrl: string;
@@ -192,7 +190,11 @@ export interface IntegrationConfig {
 export interface WebhookLogItem {
   id: string;
   timestamp: string;
-  event: 'WITCHING_HOUR_CHECKIN' | 'B2B_LEAD_CAPTURE' | 'DOCUSEAL_POLICY_SIGNOFF' | 'SOS_CRISIS_TRIGGER';
+  event:
+    | 'WITCHING_HOUR_CHECKIN'
+    | 'B2B_LEAD_CAPTURE'
+    | 'DOCUSEAL_POLICY_SIGNOFF'
+    | 'SOS_CRISIS_TRIGGER';
   destination: 'n8n + Twenty CRM' | 'DocuSeal + n8n';
   status: '200 OK (Live)' | '200 OK (Local Sandbox)';
   payloadPreview: string;

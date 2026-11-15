@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   BookOpen,
   Bot,
@@ -12,17 +12,25 @@ import {
   Users,
   Utensils,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { IntegrationsModal } from './components/IntegrationsModal';
 import { IroncladLogo } from './components/IroncladLogo';
 import { SOSModal } from './components/SOSModal';
 import {
   DEFAULT_CBT_ENTRIES,
-  DEFAULT_FORGE_LOGS,
   DEFAULT_NON_NEGOTIABLES,
   DEFAULT_SHOPPING_LIST,
   INITIAL_COMMUNITY_POSTS,
 } from './data/ironcladData';
+import {
+  clearAllDatedCheckIns,
+  DatedCheckIn,
+  deleteDatedCheckIn,
+  exportDatedCheckInsBackup,
+  migrateLegacyCheckInsToDexie,
+  restoreDatedCheckInsBackup,
+  saveDatedCheckIn,
+} from './db/checkinsDb';
 import { FuelTheMindModule } from './modules/FuelTheMindModule';
 import { LifelinesDirectoryModule } from './modules/LifelinesDirectoryModule';
 import { LockerRoomAndB2BModule } from './modules/LockerRoomAndB2BModule';
@@ -30,7 +38,10 @@ import { TheCornermanModule } from './modules/TheCornermanModule';
 import { TheForgeModule } from './modules/TheForgeModule';
 import { ThePlaybooksModule } from './modules/ThePlaybooksModule';
 import {
-  askIroncladCornerman,
+  requestCornermanCompanion,
+  validateSourceIds,
+} from './services/cornermanEngine';
+import {
   DEFAULT_INTEGRATION_CONFIG,
   fireIroncladWebhook,
   loadPersisted,
@@ -38,11 +49,16 @@ import {
   syncToSupabaseOrLocal,
 } from './services/integrations';
 import {
+  EarnedBadgeRecord,
+  loadAndMigrateMilestones,
+  mergeEarnedMilestones,
+  saveEarnedMilestones,
+} from './services/milestones';
+import {
   B2BLeadSubmission,
   CBTWorksheetEntry,
   ChatMessage,
   CommunityPost,
-  DailyForgeLog,
   IntegrationConfig,
   LockerChannel,
   ModuleId,
@@ -61,90 +77,89 @@ interface NavItem {
   icon: React.FC<{ className?: string }>;
 }
 
+// Ordered so Forge, Cornerman, and Lifelines are immediately reachable on mobile
 const NAV_ITEMS: NavItem[] = [
   {
     id: 'forge',
     label: 'The Forge',
     shortLabel: 'Forge',
-    subtitle: 'Habit & Streak HQ',
+    subtitle: 'Daily dashboard & streak',
     icon: Hammer,
   },
   {
     id: 'cornerman',
-    label: 'The Cornerman',
+    label: 'Cornerman',
     shortLabel: 'Cornerman',
-    subtitle: '24/7 RAG AI Mentor',
+    subtitle: '24/7 recovery companion',
     icon: Bot,
   },
   {
+    id: 'lifelines',
+    label: 'Lifelines',
+    shortLabel: 'Lifelines',
+    subtitle: 'Free UK support & 0.0%',
+    icon: HeartHandshake,
+  },
+  {
     id: 'fuel',
-    label: 'Fuel The Mind',
-    shortLabel: 'Fuel (£40)',
-    subtitle: 'Chef Meals & Shop',
+    label: 'Fuel the Mind',
+    shortLabel: 'Fuel',
+    subtitle: '15-min meals & £40 shop',
     icon: Utensils,
   },
   {
     id: 'playbooks',
-    label: 'The Playbooks',
+    label: 'Playbooks',
     shortLabel: 'Playbooks',
-    subtitle: '5 Guides & CBT Tool',
+    subtitle: '5 guides & HALT tool',
     icon: BookOpen,
-  },
-  {
-    id: 'lifelines',
-    label: 'UK Lifelines',
-    shortLabel: 'Lifelines',
-    subtitle: '24/7 Support & 0.0%',
-    icon: HeartHandshake,
   },
   {
     id: 'locker',
     label: 'Locker Room & B2B',
     shortLabel: 'Community',
-    subtitle: 'Peers & ROI Portal',
+    subtitle: 'Peers & workplace ROI',
     icon: Users,
   },
 ];
 
-const INITIAL_HEATMAP = Array.from({ length: 28 }, (_, i) => i !== 4 && i !== 11);
-
-const INITIAL_CORNERMAN_MESSAGES: ChatMessage[] = [
-  {
-    id: 'welcome-msg',
-    sender: 'cornerman',
-    timestamp: 'Live 24/7',
-    text: `Welcome to the Forge, mate. I'm **The Ironclad Cornerman**—built from the kitchen pass and lived recovery to walk beside you at 5 PM after a brutal shift or 3 AM when your head won't quiet down.
-
-Tap any of the **4 Quick-Action Chips** above, drop **3 random ingredients from your fridge** into the generator on the left for an instant 12-minute dopamine skillet, or tell me straight how your head is feeling today.`,
-    citations: [
-      {
-        id: 'playbook-1',
-        type: 'Playbook',
-        title: 'Playbook 1: The First 30 Days Sobriety Blueprint',
-        referenceId: 'playbook-1',
-      },
-      {
-        id: 'playbook-2',
-        type: 'Playbook',
-        title: 'Playbook 2: The £40 Mood-Food Supermarket Cheat Sheet',
-        referenceId: 'playbook-2',
-      },
-    ],
-  },
-];
+function createInitialCornermanMessages(): ChatMessage[] {
+  return [
+    {
+      id: 'welcome-msg',
+      sender: 'cornerman',
+      timestamp: 'Ready 24/7',
+      text: "Welcome to Ironclad Mindset, mate. I'm your Cornerman—here to help you navigate after-shift cravings, plan a quick meal on a budget, or talk through a stressful day.\n\nChoose a quick prompt above, enter three ingredients from your fridge on the left, or tell me what's going on right now.",
+      citations: validateSourceIds([
+        'playbook-1#section-0',
+        'playbook-2#section-0',
+      ]),
+      action: 'START_CRAVING_RESET',
+    },
+  ];
+}
 
 export function App() {
+  const prefersReducedMotion = useReducedMotion();
   const [activeModule, setActiveModule] = useState<ModuleId>('forge');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [isSOSOpen, setIsSOSOpen] = useState<boolean>(false);
   const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
 
-  // Persistent State Hooks (LocalStorage + Supabase Sync Ready)
+  // Load & migrate streak + 12 Iron Milestones (persisted separately so setbacks preserve earned badges)
+  const initialMilestoneState = loadAndMigrateMilestones();
+  const [streakDays, setStreakDaysState] = useState<number>(
+    initialMilestoneState.streakDays || 14
+  );
+  const [earnedBadges, setEarnedBadges] = useState<EarnedBadgeRecord[]>(() =>
+    mergeEarnedMilestones(
+      initialMilestoneState.streakDays || 14,
+      initialMilestoneState.earnedRecords
+    )
+  );
+
   const [config, setConfig] = useState<IntegrationConfig>(() =>
     loadPersisted('integration_config', DEFAULT_INTEGRATION_CONFIG)
-  );
-  const [streakDays, setStreakDays] = useState<number>(() =>
-    loadPersisted('streak_days', 14)
   );
   const [weeklySpendGBP, setWeeklySpendGBP] = useState<number>(() =>
     loadPersisted('weekly_spend_gbp', 65)
@@ -152,15 +167,15 @@ export function App() {
   const [tasks, setTasks] = useState<NonNegotiableTask[]>(() =>
     loadPersisted('non_negotiables', DEFAULT_NON_NEGOTIABLES)
   );
-  const [forgeLogs, setForgeLogs] = useState<DailyForgeLog[]>(() =>
-    loadPersisted('forge_logs', DEFAULT_FORGE_LOGS)
-  );
-  const [heatmapDays, setHeatmapDays] = useState<boolean[]>(() =>
-    loadPersisted('heatmap_days', INITIAL_HEATMAP)
-  );
+
+  // On-device dated check-ins powered by Dexie.js
+  const [checkIns, setCheckIns] = useState<DatedCheckIn[]>([]);
+
+  // Session-only Cornerman chat history by default
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    loadPersisted('cornerman_messages', INITIAL_CORNERMAN_MESSAGES)
+    createInitialCornermanMessages()
   );
+
   const [shoppingList, setShoppingList] = useState<ShoppingIngredient[]>(() =>
     loadPersisted('shopping_list', DEFAULT_SHOPPING_LIST)
   );
@@ -177,26 +192,88 @@ export function App() {
     loadPersisted('webhook_logs', [])
   );
 
-  // Cross-module deep-link state
+  // Deep-link states for Playbooks & Recipes
   const [highlightedRecipeId, setHighlightedRecipeId] = useState<string | null>(
     null
   );
   const [initialOpenPlaybookId, setInitialOpenPlaybookId] = useState<
     string | null
   >(null);
+  const [initialOpenSectionIndex, setInitialOpenSectionIndex] = useState<
+    number | null
+  >(null);
 
-  const moneySavedGBP = ((streakDays / 7) * weeklySpendGBP).toFixed(0);
+  // Initialize Dexie dated check-ins & remove any legacy persisted chat history
+  useEffect(() => {
+    try {
+      localStorage.removeItem('ironclad_mindset_v1_cornerman_messages');
+    } catch {
+      // Ignore
+    }
+    migrateLegacyCheckInsToDexie().then((rows) => {
+      setCheckIns(rows);
+    });
+  }, []);
 
-  // Handlers
-  const handleSaveConfig = (next: IntegrationConfig) => {
-    setConfig(next);
-    savePersisted('integration_config', next);
+  // Keep earnedBadges synced whenever streakDays changes
+  const updateStreakAndAwardBadges = (nextStreak: number) => {
+    const safeStreak = Math.max(0, Math.floor(nextStreak));
+    setStreakDaysState(safeStreak);
+    savePersisted('streak_days', safeStreak);
+
+    setEarnedBadges((prev) => {
+      const merged = mergeEarnedMilestones(safeStreak, prev);
+      saveEarnedMilestones(merged);
+      return merged;
+    });
   };
 
   const handleIncrementStreak = () => {
-    const next = streakDays + 1;
-    setStreakDays(next);
-    syncToSupabaseOrLocal('ironclad_streaks', 'streak_days', next, config);
+    updateStreakAndAwardBadges(streakDays + 1);
+  };
+
+  const handleResetStreakKeepBadges = () => {
+    // Resets active streak to 0 while preserving all earned milestone badges
+    setStreakDaysState(0);
+    savePersisted('streak_days', 0);
+  };
+
+  // Dexie Check-In Handlers
+  const handleSaveCheckIn = async (
+    input: Omit<DatedCheckIn, 'updatedAt'>
+  ) => {
+    await saveDatedCheckIn(input);
+    const updated = await migrateLegacyCheckInsToDexie();
+    setCheckIns(updated);
+  };
+
+  const handleDeleteCheckIn = async (date: string) => {
+    await deleteDatedCheckIn(date);
+    const updated = await migrateLegacyCheckInsToDexie();
+    setCheckIns(updated);
+  };
+
+  const handleClearAllCheckIns = async () => {
+    await clearAllDatedCheckIns();
+    setCheckIns([]);
+  };
+
+  const handleExportCheckIns = async () => {
+    return exportDatedCheckInsBackup();
+  };
+
+  const handleRestoreCheckIns = async (jsonText: string) => {
+    const res = await restoreDatedCheckInsBackup(jsonText);
+    const updated = await migrateLegacyCheckInsToDexie();
+    setCheckIns(updated);
+    return res;
+  };
+
+  const moneySavedGBP = ((streakDays / 7) * weeklySpendGBP).toFixed(0);
+
+  const handleSaveConfig = (next: IntegrationConfig) => {
+    setConfig(next);
+    savePersisted('integration_config', next);
   };
 
   const handleChangeWeeklySpend = (spend: number) => {
@@ -226,40 +303,13 @@ export function App() {
     syncToSupabaseOrLocal('ironclad_tasks', 'non_negotiables', next, config);
   };
 
-  const handleLogDailyForge = (
-    mood: number,
-    sleep: number,
-    craving: number,
-    notes: string
-  ) => {
-    const today = new Date();
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const newEntry: DailyForgeLog = {
-      date: today.toISOString().slice(0, 10),
-      dayLabel: dayNames[today.getDay()],
-      mood,
-      sleep,
-      craving,
-      completedTasks: tasks.filter((t) => t.completed).length,
-      notes: notes || 'Logged daily Forge check-in.',
-    };
-    const next = [...forgeLogs, newEntry];
-    setForgeLogs(next);
-    syncToSupabaseOrLocal('ironclad_logs', 'forge_logs', next, config);
-  };
-
-  const handleToggleHeatmapDay = (index: number) => {
-    const next = heatmapDays.map((v, i) => (i === index ? !v : v));
-    setHeatmapDays(next);
-    savePersisted('heatmap_days', next);
-  };
-
+  // Session-only Cornerman chat handlers
   const handleAddCornermanMessage = (msg: ChatMessage) => {
-    setMessages((prev) => {
-      const next = [...prev, msg];
-      savePersisted('cornerman_messages', next);
-      return next;
-    });
+    setMessages((prev) => [...prev, msg]);
+  };
+
+  const handleResetConversation = () => {
+    setMessages(createInitialCornermanMessages());
   };
 
   const handleEscalateToCornerman = async (promptText: string) => {
@@ -273,14 +323,19 @@ export function App() {
       }),
       text: promptText,
     };
-    handleAddCornermanMessage(userMsg);
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
 
-    const reply = await askIroncladCornerman(
-      promptText,
+    const reply = await requestCornermanCompanion({
+      messages: nextHistory.slice(-8).map((m) => ({
+        role: m.sender,
+        text: m.text,
+      })),
       streakDays,
-      config,
-      false
-    );
+      supabaseUrl: config.supabaseUrl,
+      supabaseAnonKey: config.supabaseAnonKey,
+    });
+
     const botMsg: ChatMessage = {
       id: `msg-c-${Date.now() + 1}`,
       sender: 'cornerman',
@@ -288,10 +343,13 @@ export function App() {
         hour: '2-digit',
         minute: '2-digit',
       }),
-      text: reply.text,
+      text: reply.reply,
       citations: reply.citations,
+      action: reply.action,
+      statusNotice: reply.statusNotice,
+      isSafetyEscalation: reply.providerStatus === 'safety_escalation',
     };
-    handleAddCornermanMessage(botMsg);
+    setMessages((prev) => [...prev, botMsg]);
   };
 
   // Shopping List handlers
@@ -340,7 +398,7 @@ export function App() {
 
   const handleAskCornermanAboutPlaybook = (pb: Playbook) => {
     handleEscalateToCornerman(
-      `Cornerman, walk me through the core tactics in Playbook ${pb.number}: "${pb.title}" and how I should apply it on Day ${streakDays}.`
+      `Cornerman, walk me through the core tactics in Playbook ${pb.number}: "${pb.title}" and how I should apply it today.`
     );
   };
 
@@ -408,7 +466,7 @@ export function App() {
     const log = await fireIroncladWebhook(
       'WITCHING_HOUR_CHECKIN',
       {
-        schedule: 'Friday 16:45 UK Witching Hour Alert',
+        schedule: 'Friday 16:45 UK Craving Reset Check-in',
         streakDays,
         haltVulnerability: haltState,
         moneySavedGBP,
@@ -459,90 +517,87 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#121518] text-[#F8F9FA] flex flex-col">
+    <div className="min-h-screen bg-white text-[#121518] flex flex-col">
       {/* =================================================================== */}
       {/* PERSISTENT GLOBAL HEADER                                            */}
       {/* =================================================================== */}
-      <header className="sticky top-0 z-40 bg-[#121518]/95 backdrop-blur-md border-b border-[#2E353D] px-3 sm:px-6 py-3 no-print">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xs border-b border-[#E2E8F0] px-3 sm:px-6 py-3 no-print">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
-          {/* Brand Logo & Tagline */}
-          <div
+          <button
+            type="button"
             onClick={() => setActiveModule('forge')}
-            className="cursor-pointer"
+            className="text-left cursor-pointer"
           >
             <IroncladLogo />
-          </div>
+          </button>
 
-          {/* Right Global Controls: Live Sobriety Badge + Integration Status Pill + 5 PM SOS Red Button */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* 1. Live Sobriety Badge */}
+            {/* Live Sobriety Pill */}
             <button
+              type="button"
               onClick={() => setActiveModule('forge')}
-              className="hidden sm:flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-[#1E2328] hover:bg-[#2E353D] border border-[#7A263A] transition cursor-pointer"
-              title="View your live Sobriety & Money Saved telemetry in The Forge"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#CBD5E1] transition cursor-pointer"
+              title="Open The Forge dashboard"
             >
-              <Flame className="w-4 h-4 text-[#1BB1E7]" />
+              <Flame className="w-4 h-4 text-[#7A263A]" />
               <div className="text-left leading-tight">
-                <div className="font-mono-metric text-xs font-bold text-[#F8F9FA]">
-                  DAY {streakDays} FORGED
+                <div className="font-mono-metric text-xs font-bold text-[#121518]">
+                  Day {streakDays}
                 </div>
-                <div className="font-mono-metric text-[10px] text-emerald-400">
-                  £{moneySavedGBP} SAVED
+                <div className="font-mono-metric text-[10px] text-[#475569]">
+                  £{moneySavedGBP} saved
                 </div>
               </div>
             </button>
 
-            {/* 2. Settings / Integration Status Pill */}
+            {/* Connections & Settings Button */}
             <button
               id="open-integrations-modal-btn"
+              type="button"
               onClick={() => setIsIntegrationsOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#1E2328] hover:bg-[#2E353D] border border-[#2E353D] text-xs font-mono-metric text-[#94A3B8] hover:text-[#F8F9FA] transition cursor-pointer"
-              title="Configure Gemini AI, Supabase, n8n Webhooks & DocuSeal"
+              className="iron-btn-secondary flex items-center gap-1.5 px-3 py-2 text-xs cursor-pointer"
+              title="Connections and webhook settings"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="hidden md:inline">
-                AI • Supabase • n8n Ready
-              </span>
-              <Settings className="w-4 h-4 text-[#1BB1E7]" />
+              <Settings className="w-4 h-4 text-[#7A263A]" />
+              <span className="hidden md:inline">Connections</span>
             </button>
 
-            {/* 3. Persistent "5 PM SOS / CRAVING RESET" Red Button (#E63946) */}
-            <motion.button
+            {/* Persistent One-Tap Craving Reset Button (Strongest Red Treatment) */}
+            <button
               id="global-sos-red-btn"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.96 }}
+              type="button"
               onClick={() => setIsSOSOpen(true)}
-              className="px-3.5 sm:px-5 py-2.5 rounded-xl bg-[#E63946] hover:bg-[#d62839] text-white font-display text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_20px_rgba(230,57,70,0.5)] border border-white/25 flex items-center gap-2 cursor-pointer"
+              className="iron-btn-urgent px-3.5 sm:px-4 py-2 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
             >
-              <ShieldAlert className="w-4 h-4 animate-bounce" />
-              <span>5 PM SOS</span>
-              <span className="hidden lg:inline">/ CRAVING RESET</span>
-            </motion.button>
+              <ShieldAlert className="w-4 h-4" />
+              <span>Craving Reset</span>
+            </button>
           </div>
         </div>
       </header>
 
       {/* =================================================================== */}
-      {/* MAIN WORKSPACE: COLLAPSIBLE DESKTOP SIDEBAR + MODULE VIEWPORT       */}
+      {/* MAIN WORKSPACE: DESKTOP SIDEBAR + MODULE VIEWPORT                   */}
       {/* =================================================================== */}
       <div className="flex-1 max-w-[1440px] w-full mx-auto flex pb-20 lg:pb-8">
-        {/* Collapsible Claret & Charcoal Desktop Sidebar */}
         <aside
-          className={`hidden lg:flex flex-col justify-between bg-[#1E2328]/70 border-r border-[#2E353D] transition-all duration-200 p-3 no-print ${
+          aria-label="Primary navigation"
+          className={`hidden lg:flex flex-col justify-between bg-[#F8FAFC] border-r border-[#E2E8F0] transition-all duration-150 p-3 no-print ${
             sidebarCollapsed ? 'w-20' : 'w-64'
           }`}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex items-center justify-between px-2 py-1.5">
               {!sidebarCollapsed && (
-                <span className="text-[10px] font-mono-metric uppercase tracking-widest text-[#94A3B8]">
-                  IRONCLAD MODULES (6)
+                <span className="text-xs font-semibold text-[#475569]">
+                  Navigation
                 </span>
               )}
               <button
+                type="button"
                 onClick={() => setSidebarCollapsed((prev) => !prev)}
-                className="p-1.5 rounded-lg bg-[#121518] hover:bg-[#2E353D] text-[#94A3B8] hover:text-white cursor-pointer"
-                title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                className="p-1.5 rounded-lg bg-white hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#334155] cursor-pointer"
+                aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
                 {sidebarCollapsed ? (
                   <ChevronRight className="w-4 h-4" />
@@ -559,24 +614,30 @@ export function App() {
                 <button
                   key={item.id}
                   id={`nav-desktop-${item.id}`}
+                  type="button"
                   onClick={() => setActiveModule(item.id)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition border text-left cursor-pointer ${
+                  aria-current={active ? 'page' : undefined}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition border text-left cursor-pointer ${
                     active
-                      ? 'bg-[#7A263A] text-white border-[#1BB1E7] shadow-lg'
-                      : 'bg-transparent text-[#94A3B8] border-transparent hover:bg-[#121518] hover:text-[#F8F9FA]'
+                      ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                      : 'bg-transparent text-[#334155] border-transparent hover:bg-white hover:border-[#E2E8F0] hover:text-[#121518]'
                   }`}
                 >
                   <Icon
                     className={`w-5 h-5 flex-shrink-0 ${
-                      active ? 'text-[#1BB1E7]' : 'text-[#94A3B8]'
+                      active ? 'text-white' : 'text-[#7A263A]'
                     }`}
                   />
                   {!sidebarCollapsed && (
                     <div className="overflow-hidden">
-                      <div className="font-display text-sm font-bold uppercase tracking-wider truncate">
+                      <div className="text-sm font-semibold truncate">
                         {item.label}
                       </div>
-                      <div className="text-[11px] text-[#F8F9FA]/70 truncate">
+                      <div
+                        className={`text-[11px] truncate ${
+                          active ? 'text-white/85' : 'text-[#475569]'
+                        }`}
+                      >
                         {item.subtitle}
                       </div>
                     </div>
@@ -586,49 +647,53 @@ export function App() {
             })}
           </div>
 
-          {/* Sidebar Footer Card */}
           {!sidebarCollapsed && (
-            <div className="forge-card-claret rounded-xl p-3.5 space-y-2 text-xs">
-              <div className="font-mono-metric text-[10px] uppercase text-[#1BB1E7] font-bold">
-                FRIDAY 4:45 PM AUTOMATION
+            <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="font-semibold text-[#7A263A]">
+                Need immediate support?
               </div>
-              <p className="text-[11px] text-[#F8F9FA]/90 leading-relaxed">
-                Witching Hour Craving Check-in webhook armed via n8n & Twenty CRM.
+              <p className="text-[#475569] leading-relaxed">
+                Craving Reset and free 24/7 UK lifelines are always one tap away—even offline.
               </p>
               <button
-                onClick={() => handleTriggerWitchingHourWebhook('Hungry & Tired')}
-                className="w-full py-1.5 px-2.5 rounded-lg bg-[#121518] hover:bg-[#1E2328] border border-[#1BB1E7]/40 text-[11px] font-mono-metric text-[#1BB1E7] transition cursor-pointer"
+                type="button"
+                onClick={() => setActiveModule('lifelines')}
+                className="iron-btn-secondary w-full py-1.5 px-2.5 text-xs cursor-pointer"
               >
-                Test 4:45 PM Alert Now
+                Open UK Lifelines
               </button>
             </div>
           )}
         </aside>
 
-        {/* Active Module Viewport with Framer Motion Transitions */}
-        <main className="flex-1 p-3 sm:p-6 overflow-x-hidden">
+        {/* Main Content Area */}
+        <main className="flex-1 p-3 sm:p-6 overflow-x-hidden bg-white">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeModule}
-              initial={{ opacity: 0, y: 8 }}
+              initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.14 }}
             >
               {activeModule === 'forge' && (
                 <TheForgeModule
                   streakDays={streakDays}
+                  earnedBadges={earnedBadges}
                   onIncrementStreak={handleIncrementStreak}
-                  onSetStreakDays={setStreakDays}
+                  onSetStreakDays={updateStreakAndAwardBadges}
+                  onResetStreakKeepBadges={handleResetStreakKeepBadges}
                   weeklySpendGBP={weeklySpendGBP}
                   onChangeWeeklySpend={handleChangeWeeklySpend}
                   tasks={tasks}
                   onToggleTask={handleToggleTask}
                   onAddCustomTask={handleAddCustomTask}
-                  forgeLogs={forgeLogs}
-                  onLogDailyForge={handleLogDailyForge}
-                  heatmapDays={heatmapDays}
-                  onToggleHeatmapDay={handleToggleHeatmapDay}
+                  checkIns={checkIns}
+                  onSaveCheckIn={handleSaveCheckIn}
+                  onDeleteCheckIn={handleDeleteCheckIn}
+                  onClearAllCheckIns={handleClearAllCheckIns}
+                  onExportCheckIns={handleExportCheckIns}
+                  onRestoreCheckIns={handleRestoreCheckIns}
                 />
               )}
 
@@ -638,8 +703,19 @@ export function App() {
                   config={config}
                   messages={messages}
                   onAddMessage={handleAddCornermanMessage}
-                  onOpenPlaybookCitation={(playbookId) => {
+                  onResetConversation={handleResetConversation}
+                  onStartCravingReset={() => setIsSOSOpen(true)}
+                  onOpenHaltWorksheet={() => {
+                    setInitialOpenPlaybookId('playbook-4');
+                    setInitialOpenSectionIndex(0);
+                    setActiveModule('playbooks');
+                  }}
+                  onViewLifelines={() => setActiveModule('lifelines')}
+                  onOpenPlaybookCitation={(playbookId, sectionIndex) => {
                     setInitialOpenPlaybookId(playbookId);
+                    setInitialOpenSectionIndex(
+                      typeof sectionIndex === 'number' ? sectionIndex : null
+                    );
                     setActiveModule('playbooks');
                   }}
                   onOpenRecipeCitation={(recipeId) => {
@@ -667,6 +743,7 @@ export function App() {
                   onAskCornermanAboutPlaybook={handleAskCornermanAboutPlaybook}
                   onTriggerDocuSealWebhook={handleTriggerDocuSealWebhook}
                   initialOpenPlaybookId={initialOpenPlaybookId}
+                  initialOpenSectionIndex={initialOpenSectionIndex}
                 />
               )}
 
@@ -689,11 +766,11 @@ export function App() {
       </div>
 
       {/* =================================================================== */}
-      {/* STICKY MOBILE BOTTOM NAVIGATION BAR (PWA ERGONOMICS)                */}
+      {/* STICKY MOBILE BOTTOM NAVIGATION BAR                                 */}
       {/* =================================================================== */}
       <nav
-        aria-label="Mobile Navigation"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#121518]/95 backdrop-blur-md border-t border-[#2E353D] px-2 py-1.5 grid grid-cols-6 gap-1 no-print"
+        aria-label="Mobile navigation"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xs border-t border-[#E2E8F0] px-2 py-1.5 grid grid-cols-6 gap-1 no-print"
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -702,19 +779,21 @@ export function App() {
             <button
               key={item.id}
               id={`nav-mobile-${item.id}`}
+              type="button"
               onClick={() => setActiveModule(item.id)}
-              className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition cursor-pointer ${
+              aria-current={active ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition cursor-pointer ${
                 active
-                  ? 'bg-[#7A263A] text-white border border-[#1BB1E7]/50'
-                  : 'text-[#94A3B8] hover:text-white'
+                  ? 'bg-[#7A263A] text-white'
+                  : 'text-[#334155] hover:bg-[#F8FAFC] hover:text-[#121518]'
               }`}
             >
               <Icon
                 className={`w-4 h-4 ${
-                  active ? 'text-[#1BB1E7]' : 'text-[#94A3B8]'
+                  active ? 'text-white' : 'text-[#7A263A]'
                 }`}
               />
-              <span className="text-[10px] font-display uppercase tracking-wide mt-0.5 truncate max-w-full">
+              <span className="text-[10px] font-medium mt-0.5 truncate max-w-full">
                 {item.shortLabel}
               </span>
             </button>
@@ -723,7 +802,7 @@ export function App() {
       </nav>
 
       {/* =================================================================== */}
-      {/* GLOBAL MODALS: 5 PM SOS CRISIS MODAL & INTEGRATIONS MODAL           */}
+      {/* GLOBAL MODALS: CRAVING RESET & CONNECTIONS                          */}
       {/* =================================================================== */}
       <SOSModal
         isOpen={isSOSOpen}
@@ -742,7 +821,7 @@ export function App() {
         onSaveConfig={handleSaveConfig}
         webhookLogs={webhookLogs}
         onTestWitchingHourWebhook={() =>
-          handleTriggerWitchingHourWebhook('Friday 4:45 PM Test')
+          handleTriggerWitchingHourWebhook('Friday 4:45pm test')
         }
       />
     </div>
