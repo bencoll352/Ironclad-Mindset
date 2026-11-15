@@ -216,4 +216,6 @@ try {
   console.log('All Playwright E2E, responsive, accessibility, Cornerman, and offline PWA checks passed!');
 } finally {
   server.kill();
+  process.exit(0);
 }
+
