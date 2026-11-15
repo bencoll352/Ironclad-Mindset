@@ -73,7 +73,10 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const list = chatBottomRef.current?.parentElement;
+    if (list) {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages, isThinking]);
 
   const executeAction = (action: CornermanActionId) => {

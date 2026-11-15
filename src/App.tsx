@@ -146,16 +146,13 @@ export function App() {
   const [isSOSOpen, setIsSOSOpen] = useState<boolean>(false);
   const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
 
-  // Load & migrate streak + 12 Iron Milestones (persisted separately so setbacks preserve earned badges)
-  const initialMilestoneState = loadAndMigrateMilestones();
+  // Load & migrate streak + 12 Iron Milestones once (persisted separately so setbacks preserve earned badges)
+  const [initialMilestoneState] = useState(() => loadAndMigrateMilestones());
   const [streakDays, setStreakDaysState] = useState<number>(
-    initialMilestoneState.streakDays || 14
+    initialMilestoneState.streakDays
   );
-  const [earnedBadges, setEarnedBadges] = useState<EarnedBadgeRecord[]>(() =>
-    mergeEarnedMilestones(
-      initialMilestoneState.streakDays || 14,
-      initialMilestoneState.earnedRecords
-    )
+  const [earnedBadges, setEarnedBadges] = useState<EarnedBadgeRecord[]>(
+    initialMilestoneState.earnedRecords
   );
 
   const [config, setConfig] = useState<IntegrationConfig>(() =>

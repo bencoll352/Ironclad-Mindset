@@ -87,10 +87,32 @@ export async function fireIroncladWebhook(
     second: '2-digit',
   });
 
+  const N8N_EVENT_TYPES: Record<string, string> = {
+    WITCHING_HOUR_CHECKIN: 'witching_hour_checkin',
+    B2B_LEAD_CAPTURE: 'b2b_lead',
+    DOCUSEAL_POLICY_SIGNOFF: 'docuseal_signoff',
+  };
+
+  // Flat snake_case fields expected by n8n/ironclad-automation-workflow.json
+  const n8nFields: Record<string, unknown> =
+    event === 'B2B_LEAD_CAPTURE'
+      ? {
+          company_name: payload.companyName,
+          contact_name: payload.contactName,
+          contact_email: payload.email,
+          industry_sector: payload.sector,
+          employee_count: payload.employeeCount,
+          estimated_annual_savings_gbp: payload.estimatedAnnualSavingsGBP,
+          package_interest: payload.packageInterest,
+        }
+      : {};
+
   const envelope = {
     source: 'ironclad-mindset-pwa',
     version: '2.0.0',
     event,
+    event_type: N8N_EVENT_TYPES[event] ?? String(event).toLowerCase(),
+    ...n8nFields,
     dispatchedAtISO: new Date().toISOString(),
     crmTarget: config.twentyCrmWebhookUrl
       ? 'Twenty CRM Live'

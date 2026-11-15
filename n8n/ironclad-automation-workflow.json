@@ -1,0 +1,101 @@
+{
+  "name": "Ironclad Mindset \u2014 B2B Lead & Friday 5PM Check-In Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ironclad-webhook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Ironclad App Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "45 16 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "friday-5pm-cron",
+      "name": "Friday 4:45 PM Witching Hour Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.event_type}}",
+              "value2": "b2b_lead"
+            }
+          ]
+        }
+      },
+      "id": "route-event",
+      "name": "Route Event Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "ben.colliss@ironcladmindset.co.uk",
+        "toEmail": "={{$json.body.contact_email}}",
+        "subject": "Your Ironclad Mindset Workplace Resilience Proposal ({{$json.body.company_name}})",
+        "text": "Hi {{$json.body.contact_name}},\n\nThanks for running the Ironclad Mindset Workplace ROI Calculator.\n\nBased on your team size of {{$json.body.employee_count}} staff, reducing burnout and alcohol-related presenteeism can unlock an estimated \u00a3{{$json.body.estimated_annual_savings_gbp}} in recovered productivity.\n\nLet's get 15 minutes in the diary this week to discuss how we can support your team.\n\nForged in Struggle, Built for Strength,\nBen Colliss\nFounder, Ironclad Mindset"
+      },
+      "id": "send-b2b-proposal",
+      "name": "Send Instant B2B Proposal Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        760,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Ironclad App Webhook": {
+      "main": [
+        [
+          {
+            "node": "Route Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Event Type": {
+      "main": [
+        [
+          {
+            "node": "Send Instant B2B Proposal Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -35,3 +35,14 @@ Screenshot_20261115_103121_Google.jpg
 *.sw?
 .promptfoo
 
+
+# Uploaded asset symlinks & nested clones (never commit)
+bencoll352/
+ANTIGRAVITY_DROP_IN_INSTRUCTIONS.md
+/ironclad-automation-workflow.json
+/ironclad-knowledge.json
+/ironclad-logo.svg
+/manifest.json
+/playbooks.json
+/recipes-and-budget-shop.json
+/schema.sql

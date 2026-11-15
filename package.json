@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --dir tests",
     "test:e2e": "node tests/e2eVerification.mjs",
     "eval:cornerman": "PROMPTFOO_DISABLE_TELEMETRY=1 promptfoo eval --no-cache"
   },
