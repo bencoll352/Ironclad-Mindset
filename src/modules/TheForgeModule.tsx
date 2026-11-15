@@ -424,6 +424,76 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Daily Dashboard Milestones Strip (1–7, 14, 30, 90, 180, 365 days) */}
+        <div className="pt-4 border-t border-[#E2E8F0] space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[#121518]">
+              Milestones ({milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} unlocked)
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById('iron-milestones-section')
+                  ?.scrollIntoView({ behavior: 'smooth' })
+              }
+              className="text-xs font-medium text-[#0284C7] hover:underline cursor-pointer"
+            >
+              View full badge details
+            </button>
+          </div>
+
+          <div
+            id="daily-dashboard-milestones"
+            className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-12 gap-2"
+          >
+            {milestoneSummary.milestones.map((badge) => {
+              const isEarned = badge.status === 'earned';
+              const isNext = badge.status === 'next';
+              const dayLabel = `${badge.daysRequired} ${
+                badge.daysRequired === 1 ? 'day' : 'days'
+              }`;
+
+              let pillClasses =
+                'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569] hover:border-[#CBD5E1]';
+              if (isEarned) {
+                pillClasses =
+                  'bg-[#FDF2F4] border-[#7A263A]/40 text-[#7A263A] font-semibold';
+              } else if (isNext) {
+                pillClasses =
+                  'bg-[#F0F9FF] border-[#0284C7] text-[#0284C7] font-semibold ring-1 ring-[#0284C7]/40';
+              }
+
+              return (
+                <button
+                  key={badge.id}
+                  type="button"
+                  onClick={() =>
+                    document
+                      .getElementById('iron-milestones-section')
+                      ?.scrollIntoView({ behavior: 'smooth' })
+                  }
+                  title={`${badge.title} (${dayLabel}) — ${
+                    isEarned
+                      ? 'Earned'
+                      : isNext
+                      ? `Next (${badge.daysRemaining}d left)`
+                      : `Locked (${badge.daysRemaining}d left)`
+                  }`}
+                  className={`rounded-lg border px-2 py-2 text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${pillClasses}`}
+                >
+                  <span className="font-mono-metric text-xs leading-tight">
+                    {dayLabel}
+                  </span>
+                  <span className="text-[10px] leading-none opacity-90">
+                    {isEarned ? 'Earned' : isNext ? 'Next' : 'Locked'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
       {/* ================================================================= */}
