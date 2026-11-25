@@ -1,0 +1,17 @@
+<svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="15-Minute Harissa Chicken and Sweet Potato Traybake">
+  <rect width="400" height="220" fill="#F8FAFC"/>
+  <rect x="75" y="34" width="250" height="152" rx="18" fill="#E2E8F0" stroke="#475569" stroke-width="4"/>
+  <rect x="87" y="46" width="226" height="128" rx="12" fill="#FFF7ED"/>
+  <!-- Roasted sweet potato cubes -->
+  <rect x="108" y="64" width="26" height="24" rx="5" fill="#EA580C"/>
+  <rect x="142" y="128" width="26" height="24" rx="5" fill="#F97316"/>
+  <rect x="260" y="68" width="28" height="24" rx="5" fill="#EA580C"/>
+  <rect x="252" y="130" width="26" height="24" rx="5" fill="#F97316"/>
+  <!-- Harissa chicken pieces -->
+  <ellipse cx="185" cy="92" rx="34" ry="20" fill="#9A3412"/>
+  <ellipse cx="220" cy="122" rx="34" ry="19" fill="#7C2D12"/>
+  <!-- Greens & yoghurt drizzle -->
+  <circle cx="128" cy="108" r="12" fill="#16A34A"/>
+  <circle cx="238" cy="84" r="11" fill="#16A34A"/>
+  <path d="M160 88 Q195 105 230 118" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none"/>
+</svg>

@@ -1,0 +1,17 @@
+<svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="10-Minute Smashed Mackerel and Chickpea Bowl">
+  <rect width="400" height="220" fill="#F8FAFC"/>
+  <circle cx="200" cy="110" r="84" fill="#FFFFFF" stroke="#1BB1E7" stroke-width="5"/>
+  <circle cx="200" cy="110" r="72" fill="#F0F9FF"/>
+  <!-- Chickpeas -->
+  <g fill="#EAB308">
+    <circle cx="162" cy="95" r="10"/><circle cx="180" cy="84" r="9"/><circle cx="154" cy="116" r="10"/>
+    <circle cx="174" cy="128" r="9"/><circle cx="192" cy="140" r="10"/><circle cx="170" cy="108" r="9"/>
+  </g>
+  <!-- Mackerel fillets -->
+  <ellipse cx="226" cy="96" rx="34" ry="14" transform="rotate(-15 226 96)" fill="#475569"/>
+  <ellipse cx="222" cy="124" rx="32" ry="13" transform="rotate(10 222 124)" fill="#64748B"/>
+  <!-- Lemon wedge & herbs -->
+  <path d="M235 142 A18 18 0 0 1 258 126 Z" fill="#FACC15"/>
+  <circle cx="200" cy="108" r="6" fill="#16A34A"/>
+  <circle cx="214" cy="112" r="4" fill="#16A34A"/>
+</svg>
