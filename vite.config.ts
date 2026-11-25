@@ -39,6 +39,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,jpg,png,ico,woff2}'],
+        globIgnores: ['**/kokoro-*.js', '**/ort-*.wasm'],
         navigateFallback: '/Ironclad-Mindset/index.html',
         navigateFallbackDenylist: [/^\/api\//, /\/functions\/v1\//, /\/rest\/v1\//],
         // Keep chat endpoints and private records strictly out of service-worker response caches
@@ -46,6 +47,17 @@ export default defineConfig({
           {
             urlPattern: /(\/functions\/v1\/|\/rest\/v1\/|\/api\/cornerman)/i,
             handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /\/Ironclad-Mindset\/assets\/(?:kokoro-|ort-).*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ironclad-neural-voice-runtime',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 90,
+              },
+            },
           },
           {
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,

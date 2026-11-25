@@ -1,16 +1,16 @@
 import React from 'react';
 
-interface GafferIconProps {
+interface PippaIconProps {
   className?: string;
   variant?: 'monochrome' | 'badge';
   isSpeaking?: boolean;
 }
 
 /**
- * Custom icon for "The Gaffer":
- * Warm human coach silhouette with comms headset and real-time voice pulse.
+ * Custom icon for "Pippa":
+ * Warm British female coach silhouette with sleek comms headset and real-time voice pulse.
  */
-export const GafferIcon: React.FC<GafferIconProps> = ({
+export const PippaIcon: React.FC<PippaIconProps> = ({
   className = 'w-5 h-5',
   variant = 'monochrome',
   isSpeaking = false,
@@ -21,7 +21,7 @@ export const GafferIcon: React.FC<GafferIconProps> = ({
         {isSpeaking && (
           <span
             aria-hidden="true"
-            className="absolute -inset-1 rounded-2xl border-2 border-[#1BB1E7] animate-ping opacity-60"
+            className="absolute -inset-1 rounded-2xl border-2 border-[#1BB1E7] animate-ping opacity-65"
           />
         )}
         <svg
@@ -46,40 +46,45 @@ export const GafferIcon: React.FC<GafferIconProps> = ({
 
           {/* Headset top headband */}
           <path
-            d="M18 30C18 20.6 24.3 14 32 14C39.7 14 46 20.6 46 30"
+            d="M17.5 29.5C17.5 19.8 24 13.5 32 13.5C40 13.5 46.5 19.8 46.5 29.5"
             stroke="#1BB1E7"
-            strokeWidth="3.2"
+            strokeWidth="3"
             strokeLinecap="round"
           />
-          {/* Left & right earcups */}
-          <rect x="14.5" y="26.5" width="5.5" height="11" rx="2.75" fill="#1BB1E7" />
-          <rect x="44" y="26.5" width="5.5" height="11" rx="2.75" fill="#1BB1E7" />
+          {/* Earcups */}
+          <rect x="14" y="26" width="5.2" height="10.5" rx="2.6" fill="#1BB1E7" />
+          <rect x="44.8" y="26" width="5.2" height="10.5" rx="2.6" fill="#1BB1E7" />
 
-          {/* Warm human coach silhouette (head + shoulders) */}
-          <circle cx="32" cy="27.5" r="8.2" fill="#FFFFFF" />
+          {/* Warm female coach silhouette (soft bob hair + face + shoulders) */}
           <path
-            d="M17.5 52C17.5 43.7 23.8 38.5 32 38.5C40.2 38.5 46.5 43.7 46.5 52"
+            d="M22.5 28.5C22.5 21.8 26.6 17.8 32 17.8C37.4 17.8 41.5 21.8 41.5 28.5V35.5C41.5 36.8 40.2 37.6 38.8 37.3L37 36.8H27L25.2 37.3C23.8 37.6 22.5 36.8 22.5 35.5V28.5Z"
+            fill="#FFFFFF"
+            fillOpacity="0.95"
+          />
+          <circle cx="32" cy="27.2" r="6.8" fill="#FFFFFF" />
+          <path
+            d="M18.5 52C18.5 44.3 24.4 39.2 32 39.2C39.6 39.2 45.5 44.3 45.5 52"
             fill="#FFFFFF"
           />
 
           {/* Headset mic boom */}
           <path
-            d="M45.5 36C45.5 40.5 41.2 42.5 35.5 42.5"
+            d="M46 35.2C46 39.8 41.5 41.8 35.8 41.8"
             stroke="#1BB1E7"
             strokeWidth="2.4"
             strokeLinecap="round"
           />
-          <circle cx="34.5" cy="42.5" r="2.2" fill="#1BB1E7" />
+          <circle cx="34.8" cy="41.8" r="2.2" fill="#1BB1E7" />
 
           {/* Voice pulse arcs */}
           <path
-            d="M50 22.5C52.4 25 53.6 28.2 53.6 31.5C53.6 34.8 52.4 38 50 40.5"
+            d="M50.5 22.5C52.9 25 54.1 28.2 54.1 31.5C54.1 34.8 52.9 38 50.5 40.5"
             stroke="#1BB1E7"
             strokeWidth="2.3"
             strokeLinecap="round"
           />
           <path
-            d="M54 19C57.3 22.4 59 26.8 59 31.5C59 36.2 57.3 40.6 54 44"
+            d="M54.5 19C57.8 22.4 59.5 26.8 59.5 31.5C59.5 36.2 57.8 40.6 54.5 44"
             stroke="#1BB1E7"
             strokeOpacity="0.65"
             strokeWidth="2.2"
@@ -100,26 +105,29 @@ export const GafferIcon: React.FC<GafferIconProps> = ({
     >
       {/* Headset arch */}
       <path
-        d="M5.5 11.5C5.5 7.4 8.4 4.5 12 4.5C15.6 4.5 18.5 7.4 18.5 11.5"
+        d="M5.5 11.2C5.5 7.2 8.4 4.3 12 4.3C15.6 4.3 18.5 7.2 18.5 11.2"
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
       />
       {/* Earcups */}
-      <rect x="4" y="10" width="2.4" height="4.6" rx="1.2" fill="currentColor" />
-      <rect x="17.6" y="10" width="2.4" height="4.6" rx="1.2" fill="currentColor" />
-      {/* Human head */}
-      <circle cx="12" cy="10.2" r="3.1" fill="currentColor" />
+      <rect x="4" y="9.8" width="2.3" height="4.4" rx="1.15" fill="currentColor" />
+      <rect x="17.7" y="9.8" width="2.3" height="4.4" rx="1.15" fill="currentColor" />
+      {/* Female silhouette hair + head */}
+      <path
+        d="M8.5 10.6C8.5 8.1 10 6.7 12 6.7C14 6.7 15.5 8.1 15.5 10.6V13.4C15.5 14 14.8 14.4 14.1 14.1L13.5 13.8H10.5L9.9 14.1C9.2 14.4 8.5 14 8.5 13.4V10.6Z"
+        fill="currentColor"
+      />
       {/* Shoulders */}
       <path
-        d="M6.2 20.2C6.2 16.9 8.7 15 12 15C15.3 15 17.8 16.9 17.8 20.2"
+        d="M6.4 20.2C6.4 17 8.8 15.1 12 15.1C15.2 15.1 17.6 17 17.6 20.2"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
       />
       {/* Mic boom */}
       <path
-        d="M18.4 14.2C18.4 16 16.8 16.8 14.3 16.8"
+        d="M18.4 14C18.4 15.8 16.8 16.6 14.3 16.6"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"

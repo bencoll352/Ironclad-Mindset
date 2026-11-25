@@ -12,9 +12,9 @@ import {
   Utensils,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { GafferIcon } from './components/GafferIcon';
 import { IntegrationsModal } from './components/IntegrationsModal';
 import { IroncladLogo } from './components/IroncladLogo';
+import { PippaIcon } from './components/PippaIcon';
 import { SOSModal } from './components/SOSModal';
 import {
   DEFAULT_CBT_ENTRIES,
@@ -77,7 +77,7 @@ interface NavItem {
   icon: React.FC<{ className?: string }>;
 }
 
-// Ordered so Forge, The Gaffer, and Lifelines are immediately reachable on mobile
+// Ordered so Forge, Pippa, and Lifelines are immediately reachable on mobile
 const NAV_ITEMS: NavItem[] = [
   {
     id: 'forge',
@@ -88,10 +88,10 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: 'cornerman',
-    label: 'The Gaffer',
-    shortLabel: 'Gaffer',
+    label: 'Pippa',
+    shortLabel: 'Pippa',
     subtitle: '24/7 UK voice coach',
-    icon: GafferIcon,
+    icon: PippaIcon,
   },
   {
     id: 'lifelines',
@@ -129,7 +129,7 @@ function createInitialCornermanMessages(): ChatMessage[] {
       id: 'welcome-msg',
       sender: 'cornerman',
       timestamp: 'Ready 24/7',
-      text: "Welcome to Ironclad Mindset, mate. I'm The Gaffer—your 24/7 UK voice and recovery coach. Here to help you navigate after-shift cravings, plan a quick meal on a budget, or talk through a stressful day.\n\nTap Start Live Voice Call or the mic to speak to me in real time, choose a quick prompt above, or tell me what's going on right now.",
+      text: "Alright mate, I'm Pippa—your 24/7 UK voice and recovery coach. Here for after-shift cravings, quick £40-budget meals, or talking through a rough day.\n\nTap Start Live Voice Call to speak with me hands-free, or tell me what's going on right now—how's your day looking?",
       citations: validateSourceIds([
         'playbook-1#section-0',
         'playbook-2#section-0',
@@ -395,7 +395,7 @@ export function App() {
 
   const handleAskCornermanAboutPlaybook = (pb: Playbook) => {
     handleEscalateToCornerman(
-      `Gaffer, walk me through the core tactics in Playbook ${pb.number}: "${pb.title}" and how I should apply it today.`
+      `Pippa, walk me through the core tactics in Playbook ${pb.number}: "${pb.title}" and how I should apply it today.`
     );
   };
 

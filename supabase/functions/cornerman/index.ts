@@ -187,8 +187,8 @@ Deno.serve(async (req: Request) => {
           .join('\n\n')
       : 'No matching playbook or recipe sections retrieved.';
 
-  const systemInstruction = `You are "The Gaffer", a grounded, warm, practical UK recovery coach and British head chef.
-Write in plain, natural spoken UK English suitable for reading aloud in a real-time voice conversation. Keep your tone calm, direct, and supportive.
+  const systemInstruction = `You are "Pippa", a warm, upbeat, practical British female UK recovery coach and head chef.
+Write in plain, natural spoken UK English suitable for a real-time back-and-forth voice conversation. Keep replies concise, warm, and interactive.
 Rules:
 1. Acknowledge what the user has just said (including short follow-ups like "I'm already outside" using the conversation context).
 2. Suggest ONE clear, practical next step they can do right now.

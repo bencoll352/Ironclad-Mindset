@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { GafferIcon } from './GafferIcon';
+import { PippaIcon } from './PippaIcon';
 
 interface SOSModalProps {
   isOpen: boolean;
@@ -50,15 +50,15 @@ const HALT_PROTOCOLS: Record<
       'Workplace frustration keeps your body in fight-or-flight mode. Drinking on frustration only disrupts your sleep and leaves the problem waiting tomorrow.',
     immediateAction:
       'Drop your shoulders. Complete 60 seconds of Box Breathing, splash cold water on your wrists, and step outside for 10 minutes without your phone.',
-    buttonLabel: 'Talk it through with The Gaffer',
+    buttonLabel: 'Talk it through with Pippa',
   },
   Lonely: {
     headline: 'Quiet hours after a busy shift',
     science:
       'Walking into a quiet flat after a noisy shift or site is a common trigger. Reaching out to someone breaks the isolation immediately.',
     immediateAction:
-      'Check in with peers in the Locker Room or talk with The Gaffer right now.',
-    buttonLabel: 'Open The Gaffer voice coach',
+      'Check in with peers in the Locker Room or talk with Pippa right now.',
+    buttonLabel: 'Open Pippa voice coach',
   },
   Tired: {
     headline: 'Decision fatigue and exhaustion',
@@ -66,7 +66,7 @@ const HALT_PROTOCOLS: Record<
       'Alcohol sedates you briefly but fragments deep sleep and wakes you early. Your body simply needs food, hydration, and proper rest.',
     immediateAction:
       'Change out of work clothes straight away, eat a simple meal, take a warm shower, and get an early night.',
-    buttonLabel: 'Ask The Gaffer for a wind-down plan',
+    buttonLabel: 'Ask Pippa for a wind-down plan',
   },
 };
 
@@ -384,8 +384,8 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                   }}
                   className="iron-btn-primary py-2.5 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <GafferIcon className="w-4 h-4" />
-                  Talk to The Gaffer
+                  <PippaIcon className="w-4 h-4" />
+                  Talk to Pippa
                 </button>
 
                 <a

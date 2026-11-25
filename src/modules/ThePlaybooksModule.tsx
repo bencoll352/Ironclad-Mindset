@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { GafferIcon } from '../components/GafferIcon';
+import { PippaIcon } from '../components/PippaIcon';
 import { PLAYBOOKS } from '../data/ironcladData';
 import { CBTWorksheetEntry, Playbook } from '../types/ironclad';
 
@@ -269,8 +269,8 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                   onClick={() => onAskCornermanAboutPlaybook(pb)}
                   className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <GafferIcon className="w-3.5 h-3.5 text-[#0284C7]" />
-                  Ask The Gaffer
+                  <PippaIcon className="w-3.5 h-3.5 text-[#0284C7]" />
+                  Ask Pippa
                 </button>
               </div>
             </div>
@@ -407,8 +407,8 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                     }}
                     className="iron-btn-primary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <GafferIcon className="w-3.5 h-3.5" />
-                    Ask The Gaffer
+                    <PippaIcon className="w-3.5 h-3.5" />
+                    Ask Pippa
                   </button>
                   <button
                     id="close-playbook-modal-btn"

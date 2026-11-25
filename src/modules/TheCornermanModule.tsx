@@ -7,6 +7,7 @@ import {
   MicOff,
   PhoneCall,
   PhoneOff,
+  RefreshCw,
   RotateCcw,
   Send,
   ShieldAlert,
@@ -18,7 +19,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GafferIcon } from '../components/GafferIcon';
+import { PippaIcon } from '../components/PippaIcon';
 import {
   buildFridgeCompanionRecipe,
   CornermanActionId,
@@ -27,19 +28,29 @@ import {
 } from '../services/cornermanEngine';
 import {
   createUkSpeechRecognizer,
+  fetchVoiceboxProfiles,
   formatVoiceLabel,
-  GafferVoicePreferences,
+  getNeuralModelStatus,
   isSpeechRecognitionSupported,
   isSpeechSynthesisSupported,
-  loadGafferVoicePrefs,
+  KOKORO_UK_FEMALE_VOICES,
+  KokoroUkVoiceId,
+  loadPippaVoicePrefs,
+  NeuralModelStatus,
+  PippaVoiceEngine,
+  PippaVoicePreferences,
+  preloadNeuralUkVoice,
   rankUkVoices,
-  saveGafferVoicePrefs,
+  savePippaVoicePrefs,
   selectBestUkVoice,
   speakUkText,
   stopUkSpeech,
+  subscribeNeuralModelStatus,
   subscribeToVoiceList,
   UkRecognizerController,
-} from '../services/gafferSpeech';
+  unlockPippaAudioContext,
+  VoiceboxProfile,
+} from '../services/pippaSpeech';
 import { ChatMessage, IntegrationConfig } from '../types/ironclad';
 
 interface TheCornermanModuleProps {
@@ -96,10 +107,15 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Voice & real-time speech state
-  const [voicePrefs, setVoicePrefs] = useState<GafferVoicePreferences>(() =>
-    loadGafferVoicePrefs()
+  const [voicePrefs, setVoicePrefs] = useState<PippaVoicePreferences>(() =>
+    loadPippaVoicePrefs()
   );
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [neuralStatus, setNeuralStatus] = useState<NeuralModelStatus>(() =>
+    getNeuralModelStatus()
+  );
+  const [voiceboxProfiles, setVoiceboxProfiles] = useState<VoiceboxProfile[]>([]);
+  const [voiceboxLoading, setVoiceboxLoading] = useState<boolean>(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
@@ -115,7 +131,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   // Refs for fresh state inside async recognition / TTS callbacks
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
-  const voicePrefsRef = useRef<GafferVoicePreferences>(voicePrefs);
+  const voicePrefsRef = useRef<PippaVoicePreferences>(voicePrefs);
   voicePrefsRef.current = voicePrefs;
   const availableVoicesRef = useRef<SpeechSynthesisVoice[]>(availableVoices);
   availableVoicesRef.current = availableVoices;
@@ -131,22 +147,33 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   const pendingUtteranceRef = useRef<string>('');
   const silenceTimerRef = useRef<number | null>(null);
 
-  const rankedVoices = useMemo(
+  const rankedBrowserVoices = useMemo(
     () => rankUkVoices(availableVoices),
     [availableVoices]
   );
 
-  const activeVoice = useMemo(
-    () => selectBestUkVoice(availableVoices, voicePrefs.voiceURI),
-    [availableVoices, voicePrefs.voiceURI]
+  const activeBrowserVoice = useMemo(
+    () => selectBestUkVoice(availableVoices, voicePrefs.browserVoiceURI),
+    [availableVoices, voicePrefs.browserVoiceURI]
+  );
+
+  const activeNeuralVoice = useMemo(
+    () =>
+      KOKORO_UK_FEMALE_VOICES.find((v) => v.id === voicePrefs.neuralVoiceId) ||
+      KOKORO_UK_FEMALE_VOICES[0],
+    [voicePrefs.neuralVoiceId]
   );
 
   useEffect(() => {
-    const unsubscribe = subscribeToVoiceList((voices) => {
+    const unsubVoices = subscribeToVoiceList((voices) => {
       setAvailableVoices(voices);
     });
+    const unsubNeural = subscribeNeuralModelStatus((status) => {
+      setNeuralStatus(status);
+    });
     return () => {
-      unsubscribe();
+      unsubVoices();
+      unsubNeural();
       stopUkSpeech();
       if (silenceTimerRef.current) {
         window.clearTimeout(silenceTimerRef.current);
@@ -163,12 +190,28 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     }
   }, [messages, isThinking, liveTranscript]);
 
-  const updateVoicePrefs = (patch: Partial<GafferVoicePreferences>) => {
+  const updateVoicePrefs = (patch: Partial<PippaVoicePreferences>) => {
     setVoicePrefs((prev) => {
       const next = { ...prev, ...patch };
-      saveGafferVoicePrefs(next);
+      savePippaVoicePrefs(next);
       return next;
     });
+  };
+
+  const handleLoadVoiceboxProfiles = async (urlOverride?: string) => {
+    setVoiceboxLoading(true);
+    const profiles = await fetchVoiceboxProfiles(urlOverride || voicePrefs.voiceboxUrl);
+    setVoiceboxProfiles(profiles);
+    setVoiceboxLoading(false);
+    if (profiles.length > 0 && !voicePrefs.voiceboxProfileId) {
+      updateVoicePrefs({ voiceboxProfileId: profiles[0].id });
+    } else if (profiles.length === 0) {
+      setVoiceNotice(
+        `Could not reach Voicebox at ${urlOverride || voicePrefs.voiceboxUrl}. Start Voicebox locally or use Pippa's built-in Neural UK voice.`
+      );
+    } else {
+      setVoiceNotice(null);
+    }
   };
 
   const clearSilenceTimer = () => {
@@ -179,7 +222,12 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   };
 
   const startLiveRecognizer = useCallback(() => {
-    if (!sttSupported || !isLiveCallRef.current || isSpeakingRef.current || isThinkingRef.current) {
+    if (
+      !sttSupported ||
+      !isLiveCallRef.current ||
+      isSpeakingRef.current ||
+      isThinkingRef.current
+    ) {
       return;
     }
     if (recognizerRef.current) {
@@ -213,23 +261,26 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
             setIsListening(false);
             void sendPromptRef.current(toSend, false, true);
           }
-        }, 950);
+        }, 900);
       },
       onEnd: () => {
         recognizerRef.current = null;
         setIsListening(false);
-        // Auto-restart listening if live call is active and The Gaffer isn't speaking or thinking
         if (isLiveCallRef.current && !isSpeakingRef.current && !isThinkingRef.current) {
           window.setTimeout(() => {
             if (isLiveCallRef.current && !isSpeakingRef.current && !isThinkingRef.current) {
               startLiveRecognizer();
             }
-          }, 220);
+          }, 200);
         }
       },
       onError: (friendlyError, rawCode) => {
         setVoiceNotice(friendlyError);
-        if (rawCode === 'not-allowed' || rawCode === 'service-not-allowed' || rawCode === 'audio-capture') {
+        if (
+          rawCode === 'not-allowed' ||
+          rawCode === 'service-not-allowed' ||
+          rawCode === 'audio-capture'
+        ) {
           setIsLiveCallActive(false);
           isLiveCallRef.current = false;
           setIsListening(false);
@@ -249,9 +300,8 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
 
   const speakMessage = useCallback(
     (msgId: string, text: string) => {
-      if (!ttsSupported) return;
+      unlockPippaAudioContext();
 
-      // Pause live mic while The Gaffer speaks to avoid acoustic echo feedback
       if (recognizerRef.current) {
         recognizerRef.current.stop();
         recognizerRef.current = null;
@@ -278,7 +328,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           if (isLiveCallRef.current && !isThinkingRef.current) {
             window.setTimeout(() => {
               startLiveRecognizer();
-            }, 250);
+            }, 220);
           }
         },
         onError: (errMsg) => {
@@ -289,7 +339,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
         },
       });
     },
-    [startLiveRecognizer, ttsSupported]
+    [startLiveRecognizer]
   );
 
   const handleStopSpeaking = useCallback(
@@ -344,7 +394,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     if (!promptText.trim()) return;
 
     const userText = isFridge
-      ? `Gaffer, build me a 15-minute meal using these 3 fridge ingredients: ${promptText}`
+      ? `Pippa, build me a 15-minute meal using these 3 fridge ingredients: ${promptText}`
       : promptText.trim();
 
     const userMsg: ChatMessage = {
@@ -380,7 +430,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
       setIsThinking(false);
       isThinkingRef.current = false;
 
-      if ((fromVoiceCall || voicePrefsRef.current.autoSpeak) && ttsSupported) {
+      if (fromVoiceCall || voicePrefsRef.current.autoSpeak) {
         speakMessage(botMsg.id, botMsg.text);
       }
       return;
@@ -421,7 +471,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     setIsThinking(false);
     isThinkingRef.current = false;
 
-    if ((fromVoiceCall || voicePrefsRef.current.autoSpeak) && ttsSupported) {
+    if (fromVoiceCall || voicePrefsRef.current.autoSpeak) {
       speakMessage(botMsg.id, botMsg.text);
     } else if (isLiveCallRef.current) {
       startLiveRecognizer();
@@ -432,6 +482,8 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   sendPromptRef.current = sendPrompt;
 
   const handleToggleLiveVoiceCall = () => {
+    unlockPippaAudioContext();
+
     if (isLiveCallActive) {
       clearSilenceTimer();
       pendingUtteranceRef.current = '';
@@ -445,14 +497,17 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
       return;
     }
 
+    if (voicePrefsRef.current.engine === 'neural' && neuralStatus.state === 'idle') {
+      void preloadNeuralUkVoice();
+    }
+
     if (!sttSupported) {
       setVoiceNotice(
-        'Real-time voice input requires Chrome, Edge, or Safari with microphone permissions. You can still type and hear The Gaffer speak in UK English.'
+        'Real-time microphone listening requires Chrome, Edge, or Safari over HTTPS. You can still type and hear Pippa speak in UK English.'
       );
       return;
     }
 
-    // Stop any dictation if running
     if (dictateRecognizerRef.current) {
       dictateRecognizerRef.current.stop();
       dictateRecognizerRef.current = null;
@@ -478,6 +533,8 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   };
 
   const handleToggleDictation = () => {
+    unlockPippaAudioContext();
+
     if (isDictating) {
       dictateRecognizerRef.current?.stop();
       dictateRecognizerRef.current = null;
@@ -492,7 +549,6 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
       return;
     }
 
-    // Pause live call if active, or stop speaking for barge-in
     handleStopSpeaking(false);
     setVoiceNotice(null);
 
@@ -528,6 +584,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
 
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    unlockPippaAudioContext();
     if (!input.trim()) return;
     const text = input;
     setInput('');
@@ -541,6 +598,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
 
   const handleFridgeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    unlockPippaAudioContext();
     if (!fridgeIngredients.trim()) return;
     await sendPrompt(fridgeIngredients, true, isLiveCallActive);
   };
@@ -553,14 +611,28 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     }
   };
 
+  const activeVoiceSummary =
+    voicePrefs.engine === 'voicebox'
+      ? `Voicebox (${
+          voiceboxProfiles.find((p) => p.id === voicePrefs.voiceboxProfileId)?.name ||
+          'Connect locally'
+        })`
+      : voicePrefs.engine === 'neural'
+        ? neuralStatus.state === 'ready'
+          ? `Human Neural · ${activeNeuralVoice.label.split('·')[0].trim()}`
+          : `${activeNeuralVoice.label.split('·')[0].trim()} (Neural)`
+        : activeBrowserVoice
+          ? formatVoiceLabel(activeBrowserVoice)
+          : 'UK English Browser';
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left Column: The Gaffer overview, Real-Time UK Voice Controls, Built-in tools, Fridge Generator */}
+      {/* Left Column: Pippa Overview, Human Neural Voice Controls, Built-in Tools, Fridge Generator */}
       <div className="lg:col-span-4 space-y-5">
         <section className="iron-card p-5 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <GafferIcon
+              <PippaIcon
                 variant="badge"
                 isSpeaking={isSpeaking}
                 className="w-12 h-12"
@@ -570,33 +642,31 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                   24/7 UK voice &amp; recovery coach
                 </span>
                 <h1 className="font-display text-xl font-bold text-[#121518]">
-                  The Gaffer
+                  Pippa
                 </h1>
               </div>
             </div>
 
-            {ttsSupported && (
-              <button
-                type="button"
-                onClick={() => setShowVoiceSettings((prev) => !prev)}
-                className="p-2 rounded-lg bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#334155] cursor-pointer"
-                aria-label="Toggle UK voice settings"
-                aria-expanded={showVoiceSettings}
-                title="UK Voice Settings"
-              >
-                <SlidersHorizontal className="w-4 h-4 text-[#7A263A]" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowVoiceSettings((prev) => !prev)}
+              className="p-2 rounded-lg bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#334155] cursor-pointer"
+              aria-label="Toggle UK voice settings"
+              aria-expanded={showVoiceSettings}
+              title="UK Voice Settings"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-[#7A263A]" />
+            </button>
           </div>
 
           <p className="text-xs text-[#334155] leading-relaxed">
-            Speak to <strong>The Gaffer</strong> in real time with a natural UK English voice—grounded support for after-shift cravings, pub plans, and stressful days. Chat stays on-device for this session only.
+            Have a real back-and-forth voice chat with <strong>Pippa</strong> in human UK English—built for after-shift cravings, pub scripts, and rough days. Everything stays private on your device.
           </p>
 
           {/* Primary Real-Time Voice Call Trigger */}
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <button
-              id="gaffer-live-call-btn"
+              id="pippa-live-call-btn"
               type="button"
               onClick={handleToggleLiveVoiceCall}
               className={`w-full py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer border ${
@@ -618,62 +688,207 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
               )}
             </button>
 
+            {/* Human Neural Voice Preload / Status Indicator */}
+            {voicePrefs.engine === 'neural' && neuralStatus.state === 'idle' && (
+              <button
+                id="pippa-load-neural-btn"
+                type="button"
+                onClick={() => {
+                  unlockPippaAudioContext();
+                  void preloadNeuralUkVoice();
+                }}
+                className="w-full py-2 px-3 rounded-lg bg-[#FDF2F4] hover:bg-[#FCE7EB] border border-[#7A263A]/25 text-xs font-semibold text-[#7A263A] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Load Human Neural UK Voice (one-time ~86 MB)
+              </button>
+            )}
+
+            {voicePrefs.engine === 'neural' && neuralStatus.state === 'loading' && (
+              <div className="p-2.5 rounded-lg bg-[#F0F9FF] border border-[#BAE6FD] space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-medium text-[#0369A1]">
+                  <span>{neuralStatus.detail}</span>
+                  <span>{neuralStatus.progress}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-[#E0F2FE] overflow-hidden">
+                  <div
+                    className="h-full bg-[#0284C7] transition-all duration-200"
+                    style={{ width: `${neuralStatus.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {voicePrefs.engine === 'neural' && neuralStatus.state === 'ready' && (
+              <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-medium text-emerald-800 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" />
+                Human Neural UK voice active (cached offline)
+              </div>
+            )}
+
             <div className="flex items-center justify-between px-1 text-[11px] text-[#475569]">
               <span className="truncate">
-                Voice:{' '}
-                <strong className="text-[#121518]">
-                  {activeVoice ? formatVoiceLabel(activeVoice) : 'UK English Default'}
-                </strong>
+                Voice: <strong className="text-[#121518]">{activeVoiceSummary}</strong>
               </span>
-              {ttsSupported && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateVoicePrefs({ autoSpeak: !voicePrefs.autoSpeak })
-                  }
-                  className="inline-flex items-center gap-1 font-medium text-[#7A263A] hover:underline cursor-pointer flex-shrink-0"
-                >
-                  {voicePrefs.autoSpeak ? (
-                    <>
-                      <Volume2 className="w-3.5 h-3.5" /> Auto-speak On
-                    </>
-                  ) : (
-                    <>
-                      <VolumeX className="w-3.5 h-3.5 text-[#475569]" /> Auto-speak Off
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() =>
+                  updateVoicePrefs({ autoSpeak: !voicePrefs.autoSpeak })
+                }
+                className="inline-flex items-center gap-1 font-medium text-[#7A263A] hover:underline cursor-pointer flex-shrink-0"
+              >
+                {voicePrefs.autoSpeak ? (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5" /> Auto-speak On
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-[#475569]" /> Auto-speak Off
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
           {/* Collapsible UK Voice Settings */}
-          {showVoiceSettings && ttsSupported && (
+          {showVoiceSettings && (
             <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
               <div>
-                <label
-                  htmlFor="gaffer-voice-select"
-                  className="block text-[11px] font-semibold text-[#121518] mb-1"
-                >
-                  UK English voice
-                </label>
-                <select
-                  id="gaffer-voice-select"
-                  value={activeVoice?.voiceURI || voicePrefs.voiceURI}
-                  onChange={(e) => updateVoicePrefs({ voiceURI: e.target.value })}
-                  className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
-                >
-                  {rankedVoices.length === 0 ? (
-                    <option value="">System UK English Default</option>
-                  ) : (
-                    rankedVoices.map((v) => (
-                      <option key={v.voiceURI} value={v.voiceURI}>
-                        {formatVoiceLabel(v)}
-                      </option>
-                    ))
-                  )}
-                </select>
+                <span className="block text-[11px] font-semibold text-[#121518] mb-1.5">
+                  Voice engine
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  {(
+                    [
+                      { id: 'neural', label: 'Neural UK' },
+                      { id: 'voicebox', label: 'Voicebox' },
+                      { id: 'browser', label: 'Fast OS' },
+                    ] as { id: PippaVoiceEngine; label: string }[]
+                  ).map((tab) => {
+                    const active = voicePrefs.engine === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => updateVoicePrefs({ engine: tab.id })}
+                        className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border cursor-pointer ${
+                          active
+                            ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                            : 'bg-white text-[#334155] border-[#CBD5E1]'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              {voicePrefs.engine === 'neural' && (
+                <div>
+                  <label
+                    htmlFor="pippa-neural-voice-select"
+                    className="block text-[11px] font-semibold text-[#121518] mb-1"
+                  >
+                    Kokoro UK female voice
+                  </label>
+                  <select
+                    id="pippa-neural-voice-select"
+                    value={voicePrefs.neuralVoiceId}
+                    onChange={(e) =>
+                      updateVoicePrefs({
+                        neuralVoiceId: e.target.value as KokoroUkVoiceId,
+                      })
+                    }
+                    className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                  >
+                    {KOKORO_UK_FEMALE_VOICES.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {voicePrefs.engine === 'voicebox' && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="pippa-voicebox-url"
+                    className="block text-[11px] font-semibold text-[#121518]"
+                  >
+                    Local Voicebox server URL
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      id="pippa-voicebox-url"
+                      type="url"
+                      value={voicePrefs.voiceboxUrl}
+                      onChange={(e) =>
+                        updateVoicePrefs({ voiceboxUrl: e.target.value })
+                      }
+                      placeholder="http://127.0.0.1:17493"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleLoadVoiceboxProfiles()}
+                      className="iron-btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1 cursor-pointer"
+                      title="Fetch Voicebox profiles"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 ${voiceboxLoading ? 'animate-spin' : ''}`}
+                      />
+                      Connect
+                    </button>
+                  </div>
+                  {voiceboxProfiles.length > 0 && (
+                    <select
+                      aria-label="Voicebox voice profile"
+                      value={voicePrefs.voiceboxProfileId}
+                      onChange={(e) =>
+                        updateVoicePrefs({ voiceboxProfileId: e.target.value })
+                      }
+                      className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                    >
+                      {voiceboxProfiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {voicePrefs.engine === 'browser' && ttsSupported && (
+                <div>
+                  <label
+                    htmlFor="pippa-browser-voice-select"
+                    className="block text-[11px] font-semibold text-[#121518] mb-1"
+                  >
+                    System UK English voice
+                  </label>
+                  <select
+                    id="pippa-browser-voice-select"
+                    value={activeBrowserVoice?.voiceURI || voicePrefs.browserVoiceURI}
+                    onChange={(e) =>
+                      updateVoicePrefs({ browserVoiceURI: e.target.value })
+                    }
+                    className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                  >
+                    {rankedBrowserVoices.length === 0 ? (
+                      <option value="">System UK English Default</option>
+                    ) : (
+                      rankedBrowserVoices.map((v) => (
+                        <option key={v.voiceURI} value={v.voiceURI}>
+                          {formatVoiceLabel(v)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              )}
 
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-semibold text-[#121518]">
@@ -681,9 +896,9 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 </span>
                 <div className="flex items-center gap-1">
                   {[
-                    { label: 'Calm', rate: 0.9 },
-                    { label: 'Natural', rate: 0.98 },
-                    { label: 'Crisp', rate: 1.08 },
+                    { label: 'Calm', rate: 0.92 },
+                    { label: 'Natural', rate: 1.0 },
+                    { label: 'Crisp', rate: 1.1 },
                   ].map((opt) => {
                     const selected = Math.abs(voicePrefs.rate - opt.rate) < 0.03;
                     return (
@@ -709,13 +924,13 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 onClick={() =>
                   speakMessage(
                     'voice-preview',
-                    "Alright mate, I'm The Gaffer. Take a slow breath—we'll steady this together."
+                    "Alright mate, I'm Pippa. Take a slow breath—we'll sort this together, one step at a time."
                   )
                 }
                 className="iron-btn-secondary w-full py-1.5 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Volume2 className="w-3.5 h-3.5 text-[#7A263A]" />
-                Test UK voice sample
+                Test Pippa’s UK voice
               </button>
             </div>
           )}
@@ -794,7 +1009,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
 
       {/* Right Column: Live Voice & Conversation Thread */}
       <section
-        aria-label="The Gaffer conversation"
+        aria-label="Pippa conversation"
         className="lg:col-span-8 iron-card flex flex-col h-[680px] overflow-hidden"
       >
         {/* Top Bar: Quick Prompts & Start Over */}
@@ -802,7 +1017,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-[#121518]">
-                The Gaffer — Session conversation (bounded context window)
+                Pippa — Live voice &amp; chat session
               </span>
               <span className="text-xs text-[#475569] block">
                 Private check-in notes are never included in voice or chat requests.
@@ -841,7 +1056,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           {/* Real-Time Live Voice Call Banner */}
           {(isLiveCallActive || isSpeaking) && (
             <div
-              id="gaffer-live-voice-bar"
+              id="pippa-live-voice-bar"
               role="status"
               className={`px-3.5 py-2.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${
                 isSpeaking
@@ -850,7 +1065,6 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
               }`}
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                {/* Animated Voice Pulse Bars */}
                 <div
                   aria-hidden="true"
                   className="flex items-center gap-0.5 h-5 px-1.5 flex-shrink-0"
@@ -879,11 +1093,11 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-[#121518]">
                     {isSpeaking
-                      ? 'The Gaffer is speaking (UK English)…'
+                      ? 'Pippa is speaking (UK English)…'
                       : isThinking
-                        ? 'The Gaffer is thinking…'
+                        ? 'Pippa is thinking…'
                         : isListening
-                          ? 'Listening live in UK English — speak naturally'
+                          ? 'Listening live — speak naturally, Pippa will reply'
                           : 'Live voice ready'}
                   </div>
                   {liveTranscript && (
@@ -992,12 +1206,12 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                         isBot ? 'text-[#7A263A]' : 'text-white/90'
                       }`}
                     >
-                      {isBot && <GafferIcon className="w-3.5 h-3.5" />}
-                      {isBot ? 'The Gaffer' : 'You'}
+                      {isBot && <PippaIcon className="w-3.5 h-3.5" />}
+                      {isBot ? 'Pippa' : 'You'}
                     </span>
 
                     <div className="flex items-center gap-2">
-                      {isBot && ttsSupported && (
+                      {isBot && (
                         <button
                           type="button"
                           onClick={() =>
@@ -1013,7 +1227,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                           aria-label={
                             isThisMsgSpeaking
                               ? 'Stop speaking message'
-                              : 'Listen to The Gaffer in UK English'
+                              : 'Listen to Pippa in UK English'
                           }
                         >
                           {isThisMsgSpeaking ? (
@@ -1043,7 +1257,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                     {msg.text}
                   </div>
 
-                  {/* Direct Action Button from Validated Structured Response */}
+                  {/* Direct Action Button */}
                   {isBot && msg.action && (
                     <div className="pt-2">
                       <button
@@ -1101,8 +1315,8 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
               role="status"
               className="flex items-center gap-2 text-xs text-[#334155] p-3 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] w-fit"
             >
-              <GafferIcon className="w-4 h-4 text-[#7A263A] animate-pulse" />
-              The Gaffer is thinking...
+              <PippaIcon className="w-4 h-4 text-[#7A263A] animate-pulse" />
+              Pippa is thinking...
             </div>
           )}
           <div ref={chatBottomRef} />
@@ -1114,7 +1328,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           className="p-4 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center gap-2"
         >
           <button
-            id="gaffer-mic-btn"
+            id="pippa-mic-btn"
             type="button"
             onClick={handleToggleDictation}
             className={`p-2.5 rounded-xl border transition flex items-center justify-center cursor-pointer ${
@@ -1122,7 +1336,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 ? 'bg-[#DC2626] text-white border-[#DC2626] animate-pulse'
                 : 'bg-white hover:bg-[#F1F5F9] text-[#7A263A] border-[#CBD5E1]'
             }`}
-            aria-label={isDictating ? 'Stop voice dictation' : 'Speak a message to The Gaffer'}
+            aria-label={isDictating ? 'Stop voice dictation' : 'Speak a message to Pippa'}
             title={isDictating ? 'Stop speaking' : 'Speak message (UK English)'}
           >
             {isDictating ? (
@@ -1133,7 +1347,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           </button>
 
           <label htmlFor="cornerman-chat-input" className="sr-only">
-            Message The Gaffer
+            Message Pippa
           </label>
           <input
             id="cornerman-chat-input"
@@ -1143,7 +1357,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
             placeholder={
               isDictating
                 ? 'Listening in UK English… speak now'
-                : "Message or speak to The Gaffer (e.g., 'I’ve just finished a brutal shift')..."
+                : 'Talk or type to Pippa (e.g., "Just clocked off a rough shift, feeling tempted")...'
             }
             className="flex-1 px-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs sm:text-sm text-[#121518]"
           />

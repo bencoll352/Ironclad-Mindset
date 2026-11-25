@@ -78,7 +78,7 @@ const HELPED_SUGGESTIONS = [
   'Craving Reset breathing',
   '0.0% drink swap',
   '15-minute walk outside',
-  'Spoke with The Gaffer',
+  'Spoke with Pippa',
 ];
 
 export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
@@ -676,7 +676,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                 htmlFor="checkin-private-note"
                 className="block text-xs font-medium text-[#334155] mb-1"
               >
-                Private note (kept on this device only — never sent to The Gaffer or workplace tools)
+                Private note (kept on this device only — never sent to Pippa or workplace tools)
               </label>
               <input
                 id="checkin-private-note"
