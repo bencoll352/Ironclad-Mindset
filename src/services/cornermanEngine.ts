@@ -551,7 +551,7 @@ export async function requestCornermanCompanion(options: {
     return generateBuiltInCompanionResponse(
       bounded,
       'builtin_fallback',
-      'Cornerman AI service is currently unavailable — showing built-in companion guidance.'
+      'The Gaffer AI service is currently unavailable — showing built-in companion guidance.'
     );
   }
 
@@ -600,13 +600,13 @@ export async function requestCornermanCompanion(options: {
       return generateBuiltInCompanionResponse(
         bounded,
         'builtin_fallback',
-        `Cornerman AI endpoint returned HTTP ${res.status} — using built-in companion guidance.`
+        `The Gaffer AI endpoint returned HTTP ${res.status} — using built-in companion guidance.`
       );
     } catch {
       return generateBuiltInCompanionResponse(
         bounded,
         'builtin_fallback',
-        'Cornerman AI endpoint is unreachable — using built-in companion guidance.'
+        'The Gaffer AI endpoint is unreachable — using built-in companion guidance.'
       );
     }
   }
@@ -615,6 +615,6 @@ export async function requestCornermanCompanion(options: {
   return generateBuiltInCompanionResponse(
     bounded,
     'builtin_fallback',
-    'Built-in companion mode active (connect Supabase Edge Function for live cloud AI).'
+    'Built-in voice & companion mode active (connect Supabase Edge Function for live cloud AI).'
   );
 }

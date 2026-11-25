@@ -1,7 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   BookOpen,
-  Bot,
   ChevronLeft,
   ChevronRight,
   Flame,
@@ -13,6 +12,7 @@ import {
   Utensils,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { GafferIcon } from './components/GafferIcon';
 import { IntegrationsModal } from './components/IntegrationsModal';
 import { IroncladLogo } from './components/IroncladLogo';
 import { SOSModal } from './components/SOSModal';
@@ -77,7 +77,7 @@ interface NavItem {
   icon: React.FC<{ className?: string }>;
 }
 
-// Ordered so Forge, Cornerman, and Lifelines are immediately reachable on mobile
+// Ordered so Forge, The Gaffer, and Lifelines are immediately reachable on mobile
 const NAV_ITEMS: NavItem[] = [
   {
     id: 'forge',
@@ -88,10 +88,10 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: 'cornerman',
-    label: 'Cornerman',
-    shortLabel: 'Cornerman',
-    subtitle: '24/7 recovery companion',
-    icon: Bot,
+    label: 'The Gaffer',
+    shortLabel: 'Gaffer',
+    subtitle: '24/7 UK voice coach',
+    icon: GafferIcon,
   },
   {
     id: 'lifelines',
@@ -129,7 +129,7 @@ function createInitialCornermanMessages(): ChatMessage[] {
       id: 'welcome-msg',
       sender: 'cornerman',
       timestamp: 'Ready 24/7',
-      text: "Welcome to Ironclad Mindset, mate. I'm your Cornerman—here to help you navigate after-shift cravings, plan a quick meal on a budget, or talk through a stressful day.\n\nChoose a quick prompt above, enter three ingredients from your fridge on the left, or tell me what's going on right now.",
+      text: "Welcome to Ironclad Mindset, mate. I'm The Gaffer—your 24/7 UK voice and recovery coach. Here to help you navigate after-shift cravings, plan a quick meal on a budget, or talk through a stressful day.\n\nTap Start Live Voice Call or the mic to speak to me in real time, choose a quick prompt above, or tell me what's going on right now.",
       citations: validateSourceIds([
         'playbook-1#section-0',
         'playbook-2#section-0',
@@ -395,7 +395,7 @@ export function App() {
 
   const handleAskCornermanAboutPlaybook = (pb: Playbook) => {
     handleEscalateToCornerman(
-      `Cornerman, walk me through the core tactics in Playbook ${pb.number}: "${pb.title}" and how I should apply it today.`
+      `Gaffer, walk me through the core tactics in Playbook ${pb.number}: "${pb.title}" and how I should apply it today.`
     );
   };
 

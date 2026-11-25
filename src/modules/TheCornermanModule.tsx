@@ -1,22 +1,45 @@
 import {
   AlertCircle,
   BookOpen,
-  Bot,
   ChefHat,
   HeartHandshake,
+  Mic,
+  MicOff,
+  PhoneCall,
+  PhoneOff,
   RotateCcw,
   Send,
   ShieldAlert,
+  SlidersHorizontal,
   Sparkles,
+  Square,
   Utensils,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GafferIcon } from '../components/GafferIcon';
 import {
   buildFridgeCompanionRecipe,
   CornermanActionId,
   requestCornermanCompanion,
   ValidatedCornermanCitation,
 } from '../services/cornermanEngine';
+import {
+  createUkSpeechRecognizer,
+  formatVoiceLabel,
+  GafferVoicePreferences,
+  isSpeechRecognitionSupported,
+  isSpeechSynthesisSupported,
+  loadGafferVoicePrefs,
+  rankUkVoices,
+  saveGafferVoicePrefs,
+  selectBestUkVoice,
+  speakUkText,
+  stopUkSpeech,
+  subscribeToVoiceList,
+  UkRecognizerController,
+} from '../services/gafferSpeech';
 import { ChatMessage, IntegrationConfig } from '../types/ironclad';
 
 interface TheCornermanModuleProps {
@@ -72,12 +95,217 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Voice & real-time speech state
+  const [voicePrefs, setVoicePrefs] = useState<GafferVoicePreferences>(() =>
+    loadGafferVoicePrefs()
+  );
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [showVoiceSettings, setShowVoiceSettings] = useState<boolean>(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [isLiveCallActive, setIsLiveCallActive] = useState<boolean>(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [isDictating, setIsDictating] = useState<boolean>(false);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+
+  const ttsSupported = useMemo(() => isSpeechSynthesisSupported(), []);
+  const sttSupported = useMemo(() => isSpeechRecognitionSupported(), []);
+
+  // Refs for fresh state inside async recognition / TTS callbacks
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
+  const voicePrefsRef = useRef<GafferVoicePreferences>(voicePrefs);
+  voicePrefsRef.current = voicePrefs;
+  const availableVoicesRef = useRef<SpeechSynthesisVoice[]>(availableVoices);
+  availableVoicesRef.current = availableVoices;
+  const isLiveCallRef = useRef<boolean>(isLiveCallActive);
+  isLiveCallRef.current = isLiveCallActive;
+  const isSpeakingRef = useRef<boolean>(isSpeaking);
+  isSpeakingRef.current = isSpeaking;
+  const isThinkingRef = useRef<boolean>(isThinking);
+  isThinkingRef.current = isThinking;
+
+  const recognizerRef = useRef<UkRecognizerController | null>(null);
+  const dictateRecognizerRef = useRef<UkRecognizerController | null>(null);
+  const pendingUtteranceRef = useRef<string>('');
+  const silenceTimerRef = useRef<number | null>(null);
+
+  const rankedVoices = useMemo(
+    () => rankUkVoices(availableVoices),
+    [availableVoices]
+  );
+
+  const activeVoice = useMemo(
+    () => selectBestUkVoice(availableVoices, voicePrefs.voiceURI),
+    [availableVoices, voicePrefs.voiceURI]
+  );
+
+  useEffect(() => {
+    const unsubscribe = subscribeToVoiceList((voices) => {
+      setAvailableVoices(voices);
+    });
+    return () => {
+      unsubscribe();
+      stopUkSpeech();
+      if (silenceTimerRef.current) {
+        window.clearTimeout(silenceTimerRef.current);
+      }
+      recognizerRef.current?.abort();
+      dictateRecognizerRef.current?.abort();
+    };
+  }, []);
+
   useEffect(() => {
     const list = chatBottomRef.current?.parentElement;
     if (list) {
       list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
     }
-  }, [messages, isThinking]);
+  }, [messages, isThinking, liveTranscript]);
+
+  const updateVoicePrefs = (patch: Partial<GafferVoicePreferences>) => {
+    setVoicePrefs((prev) => {
+      const next = { ...prev, ...patch };
+      saveGafferVoicePrefs(next);
+      return next;
+    });
+  };
+
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const startLiveRecognizer = useCallback(() => {
+    if (!sttSupported || !isLiveCallRef.current || isSpeakingRef.current || isThinkingRef.current) {
+      return;
+    }
+    if (recognizerRef.current) {
+      return;
+    }
+
+    const controller = createUkSpeechRecognizer({
+      continuous: true,
+      onStart: () => {
+        setIsListening(true);
+        setVoiceNotice(null);
+      },
+      onInterim: (interim) => {
+        if (isSpeakingRef.current) return;
+        const combined = `${pendingUtteranceRef.current} ${interim}`.trim();
+        setLiveTranscript(combined);
+      },
+      onFinal: (finalChunk) => {
+        if (isSpeakingRef.current) return;
+        pendingUtteranceRef.current = `${pendingUtteranceRef.current} ${finalChunk}`.trim();
+        setLiveTranscript(pendingUtteranceRef.current);
+
+        clearSilenceTimer();
+        silenceTimerRef.current = window.setTimeout(() => {
+          const toSend = pendingUtteranceRef.current.trim();
+          if (toSend && isLiveCallRef.current) {
+            pendingUtteranceRef.current = '';
+            setLiveTranscript('');
+            recognizerRef.current?.stop();
+            recognizerRef.current = null;
+            setIsListening(false);
+            void sendPromptRef.current(toSend, false, true);
+          }
+        }, 950);
+      },
+      onEnd: () => {
+        recognizerRef.current = null;
+        setIsListening(false);
+        // Auto-restart listening if live call is active and The Gaffer isn't speaking or thinking
+        if (isLiveCallRef.current && !isSpeakingRef.current && !isThinkingRef.current) {
+          window.setTimeout(() => {
+            if (isLiveCallRef.current && !isSpeakingRef.current && !isThinkingRef.current) {
+              startLiveRecognizer();
+            }
+          }, 220);
+        }
+      },
+      onError: (friendlyError, rawCode) => {
+        setVoiceNotice(friendlyError);
+        if (rawCode === 'not-allowed' || rawCode === 'service-not-allowed' || rawCode === 'audio-capture') {
+          setIsLiveCallActive(false);
+          isLiveCallRef.current = false;
+          setIsListening(false);
+          recognizerRef.current = null;
+        }
+      },
+    });
+
+    if (controller) {
+      recognizerRef.current = controller;
+      const started = controller.start();
+      if (!started) {
+        recognizerRef.current = null;
+      }
+    }
+  }, [sttSupported]);
+
+  const speakMessage = useCallback(
+    (msgId: string, text: string) => {
+      if (!ttsSupported) return;
+
+      // Pause live mic while The Gaffer speaks to avoid acoustic echo feedback
+      if (recognizerRef.current) {
+        recognizerRef.current.stop();
+        recognizerRef.current = null;
+        setIsListening(false);
+      }
+
+      setSpeakingMessageId(msgId);
+      setIsSpeaking(true);
+      isSpeakingRef.current = true;
+
+      speakUkText({
+        text,
+        prefs: voicePrefsRef.current,
+        voices: availableVoicesRef.current,
+        onStart: () => {
+          setSpeakingMessageId(msgId);
+          setIsSpeaking(true);
+          isSpeakingRef.current = true;
+        },
+        onEnd: () => {
+          setSpeakingMessageId(null);
+          setIsSpeaking(false);
+          isSpeakingRef.current = false;
+          if (isLiveCallRef.current && !isThinkingRef.current) {
+            window.setTimeout(() => {
+              startLiveRecognizer();
+            }, 250);
+          }
+        },
+        onError: (errMsg) => {
+          setVoiceNotice(errMsg);
+          setSpeakingMessageId(null);
+          setIsSpeaking(false);
+          isSpeakingRef.current = false;
+        },
+      });
+    },
+    [startLiveRecognizer, ttsSupported]
+  );
+
+  const handleStopSpeaking = useCallback(
+    (resumeCallListening = true) => {
+      stopUkSpeech();
+      setSpeakingMessageId(null);
+      setIsSpeaking(false);
+      isSpeakingRef.current = false;
+      if (resumeCallListening && isLiveCallRef.current && !isThinkingRef.current) {
+        window.setTimeout(() => {
+          startLiveRecognizer();
+        }, 180);
+      }
+    },
+    [startLiveRecognizer]
+  );
 
   const executeAction = (action: CornermanActionId) => {
     switch (action) {
@@ -108,11 +336,15 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     }
   };
 
-  const sendPrompt = async (promptText: string, isFridge = false) => {
+  const sendPrompt = async (
+    promptText: string,
+    isFridge = false,
+    fromVoiceCall = false
+  ) => {
     if (!promptText.trim()) return;
 
     const userText = isFridge
-      ? `Chef, build me a 15-minute meal using these 3 fridge ingredients: ${promptText}`
+      ? `Gaffer, build me a 15-minute meal using these 3 fridge ingredients: ${promptText}`
       : promptText.trim();
 
     const userMsg: ChatMessage = {
@@ -125,9 +357,10 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
       text: userText,
     };
 
-    const updatedHistory = [...messages, userMsg];
+    const updatedHistory = [...messagesRef.current, userMsg];
     onAddMessage(userMsg);
     setIsThinking(true);
+    isThinkingRef.current = true;
 
     if (isFridge) {
       const built = buildFridgeCompanionRecipe(promptText);
@@ -145,6 +378,11 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
       };
       onAddMessage(botMsg);
       setIsThinking(false);
+      isThinkingRef.current = false;
+
+      if ((fromVoiceCall || voicePrefsRef.current.autoSpeak) && ttsSupported) {
+        speakMessage(botMsg.id, botMsg.text);
+      }
       return;
     }
 
@@ -181,6 +419,111 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
 
     onAddMessage(botMsg);
     setIsThinking(false);
+    isThinkingRef.current = false;
+
+    if ((fromVoiceCall || voicePrefsRef.current.autoSpeak) && ttsSupported) {
+      speakMessage(botMsg.id, botMsg.text);
+    } else if (isLiveCallRef.current) {
+      startLiveRecognizer();
+    }
+  };
+
+  const sendPromptRef = useRef(sendPrompt);
+  sendPromptRef.current = sendPrompt;
+
+  const handleToggleLiveVoiceCall = () => {
+    if (isLiveCallActive) {
+      clearSilenceTimer();
+      pendingUtteranceRef.current = '';
+      setLiveTranscript('');
+      setIsLiveCallActive(false);
+      isLiveCallRef.current = false;
+      setIsListening(false);
+      recognizerRef.current?.stop();
+      recognizerRef.current = null;
+      handleStopSpeaking(false);
+      return;
+    }
+
+    if (!sttSupported) {
+      setVoiceNotice(
+        'Real-time voice input requires Chrome, Edge, or Safari with microphone permissions. You can still type and hear The Gaffer speak in UK English.'
+      );
+      return;
+    }
+
+    // Stop any dictation if running
+    if (dictateRecognizerRef.current) {
+      dictateRecognizerRef.current.stop();
+      dictateRecognizerRef.current = null;
+      setIsDictating(false);
+    }
+
+    setVoiceNotice(null);
+    setIsLiveCallActive(true);
+    isLiveCallRef.current = true;
+    startLiveRecognizer();
+  };
+
+  const handleCommitLiveUtteranceNow = () => {
+    const text = (pendingUtteranceRef.current || liveTranscript).trim();
+    if (!text) return;
+    clearSilenceTimer();
+    pendingUtteranceRef.current = '';
+    setLiveTranscript('');
+    recognizerRef.current?.stop();
+    recognizerRef.current = null;
+    setIsListening(false);
+    void sendPrompt(text, false, true);
+  };
+
+  const handleToggleDictation = () => {
+    if (isDictating) {
+      dictateRecognizerRef.current?.stop();
+      dictateRecognizerRef.current = null;
+      setIsDictating(false);
+      return;
+    }
+
+    if (!sttSupported) {
+      setVoiceNotice(
+        'Voice dictation is not supported in this browser. Try Chrome, Edge, or Safari.'
+      );
+      return;
+    }
+
+    // Pause live call if active, or stop speaking for barge-in
+    handleStopSpeaking(false);
+    setVoiceNotice(null);
+
+    const baseInput = input.trim();
+    let committed = baseInput ? `${baseInput} ` : '';
+
+    const controller = createUkSpeechRecognizer({
+      continuous: false,
+      onStart: () => setIsDictating(true),
+      onInterim: (interim) => {
+        setInput(`${committed}${interim}`.trim());
+      },
+      onFinal: (finalChunk) => {
+        committed = `${committed}${finalChunk} `;
+        setInput(committed.trim());
+      },
+      onEnd: () => {
+        dictateRecognizerRef.current = null;
+        setIsDictating(false);
+      },
+      onError: (friendlyError) => {
+        setVoiceNotice(friendlyError);
+        dictateRecognizerRef.current = null;
+        setIsDictating(false);
+      },
+    });
+
+    if (controller) {
+      dictateRecognizerRef.current = controller;
+      controller.start();
+    }
   };
 
   const handleChatSubmit = async (e: React.FormEvent) => {
@@ -188,13 +531,18 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     if (!input.trim()) return;
     const text = input;
     setInput('');
-    await sendPrompt(text, false);
+    if (isDictating) {
+      dictateRecognizerRef.current?.stop();
+      dictateRecognizerRef.current = null;
+      setIsDictating(false);
+    }
+    await sendPrompt(text, false, isLiveCallActive);
   };
 
   const handleFridgeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fridgeIngredients.trim()) return;
-    await sendPrompt(fridgeIngredients, true);
+    await sendPrompt(fridgeIngredients, true, isLiveCallActive);
   };
 
   const handleCitationClick = (cit: ValidatedCornermanCitation) => {
@@ -207,28 +555,172 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left Column: Companion overview, Built-in independent tools, and 3-ingredient fridge generator */}
+      {/* Left Column: The Gaffer overview, Real-Time UK Voice Controls, Built-in tools, Fridge Generator */}
       <div className="lg:col-span-4 space-y-5">
         <section className="iron-card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#7A263A] text-white flex items-center justify-center flex-shrink-0">
-              <Bot className="w-6 h-6" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <GafferIcon
+                variant="badge"
+                isSpeaking={isSpeaking}
+                className="w-12 h-12"
+              />
+              <div>
+                <span className="text-xs font-semibold text-[#7A263A]">
+                  24/7 UK voice &amp; recovery coach
+                </span>
+                <h1 className="font-display text-xl font-bold text-[#121518]">
+                  The Gaffer
+                </h1>
+              </div>
             </div>
-            <div>
-              <span className="text-xs font-semibold text-[#7A263A]">
-                24/7 recovery companion
-              </span>
-              <h1 className="font-display text-xl font-bold text-[#121518]">
-                The Cornerman
-              </h1>
-            </div>
+
+            {ttsSupported && (
+              <button
+                type="button"
+                onClick={() => setShowVoiceSettings((prev) => !prev)}
+                className="p-2 rounded-lg bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#334155] cursor-pointer"
+                aria-label="Toggle UK voice settings"
+                aria-expanded={showVoiceSettings}
+                title="UK Voice Settings"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-[#7A263A]" />
+              </button>
+            )}
           </div>
 
           <p className="text-xs text-[#334155] leading-relaxed">
-            Plain, grounded support for after-shift cravings, pub plans, and stressful days. Chat history is kept only for your current session—tap <strong>Start over</strong> anytime to clear it.
+            Speak to <strong>The Gaffer</strong> in real time with a natural UK English voice—grounded support for after-shift cravings, pub plans, and stressful days. Chat stays on-device for this session only.
           </p>
 
-          {/* Always-Available Independent Tools (work with or without AI provider) */}
+          {/* Primary Real-Time Voice Call Trigger */}
+          <div className="space-y-2">
+            <button
+              id="gaffer-live-call-btn"
+              type="button"
+              onClick={handleToggleLiveVoiceCall}
+              className={`w-full py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer border ${
+                isLiveCallActive
+                  ? 'bg-[#DC2626] hover:bg-[#B91C1C] text-white border-[#DC2626]'
+                  : 'bg-[#0284C7] hover:bg-[#0369A1] text-white border-[#0284C7]'
+              }`}
+            >
+              {isLiveCallActive ? (
+                <>
+                  <PhoneOff className="w-4 h-4" />
+                  End Live Voice Call
+                </>
+              ) : (
+                <>
+                  <PhoneCall className="w-4 h-4" />
+                  Start Live Voice Call (UK English)
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center justify-between px-1 text-[11px] text-[#475569]">
+              <span className="truncate">
+                Voice:{' '}
+                <strong className="text-[#121518]">
+                  {activeVoice ? formatVoiceLabel(activeVoice) : 'UK English Default'}
+                </strong>
+              </span>
+              {ttsSupported && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateVoicePrefs({ autoSpeak: !voicePrefs.autoSpeak })
+                  }
+                  className="inline-flex items-center gap-1 font-medium text-[#7A263A] hover:underline cursor-pointer flex-shrink-0"
+                >
+                  {voicePrefs.autoSpeak ? (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5" /> Auto-speak On
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX className="w-3.5 h-3.5 text-[#475569]" /> Auto-speak Off
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Collapsible UK Voice Settings */}
+          {showVoiceSettings && ttsSupported && (
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+              <div>
+                <label
+                  htmlFor="gaffer-voice-select"
+                  className="block text-[11px] font-semibold text-[#121518] mb-1"
+                >
+                  UK English voice
+                </label>
+                <select
+                  id="gaffer-voice-select"
+                  value={activeVoice?.voiceURI || voicePrefs.voiceURI}
+                  onChange={(e) => updateVoicePrefs({ voiceURI: e.target.value })}
+                  className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
+                >
+                  {rankedVoices.length === 0 ? (
+                    <option value="">System UK English Default</option>
+                  ) : (
+                    rankedVoices.map((v) => (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {formatVoiceLabel(v)}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#121518]">
+                  Pace
+                </span>
+                <div className="flex items-center gap-1">
+                  {[
+                    { label: 'Calm', rate: 0.9 },
+                    { label: 'Natural', rate: 0.98 },
+                    { label: 'Crisp', rate: 1.08 },
+                  ].map((opt) => {
+                    const selected = Math.abs(voicePrefs.rate - opt.rate) < 0.03;
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => updateVoicePrefs({ rate: opt.rate })}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium border cursor-pointer ${
+                          selected
+                            ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                            : 'bg-white text-[#334155] border-[#CBD5E1]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  speakMessage(
+                    'voice-preview',
+                    "Alright mate, I'm The Gaffer. Take a slow breath—we'll steady this together."
+                  )
+                }
+                className="iron-btn-secondary w-full py-1.5 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Volume2 className="w-3.5 h-3.5 text-[#7A263A]" />
+                Test UK voice sample
+              </button>
+            </div>
+          )}
+
+          {/* Always-Available Independent Tools */}
           <div className="pt-3 border-t border-[#E2E8F0] space-y-2">
             <div className="text-xs font-semibold text-[#121518]">
               Immediate built-in tools (always available offline)
@@ -300,9 +792,9 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
         </section>
       </div>
 
-      {/* Right Column: Conversation Thread */}
+      {/* Right Column: Live Voice & Conversation Thread */}
       <section
-        aria-label="Cornerman conversation"
+        aria-label="The Gaffer conversation"
         className="lg:col-span-8 iron-card flex flex-col h-[680px] overflow-hidden"
       >
         {/* Top Bar: Quick Prompts & Start Over */}
@@ -310,26 +802,139 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-[#121518]">
-                Session conversation (bounded context window)
+                The Gaffer — Session conversation (bounded context window)
               </span>
               <span className="text-xs text-[#475569] block">
-                Private check-in notes are never included in chat requests.
+                Private check-in notes are never included in voice or chat requests.
               </span>
             </div>
 
-            <button
-              id="cornerman-start-over-btn"
-              type="button"
-              onClick={() => {
-                setProviderNotice(null);
-                onResetConversation();
-              }}
-              className="iron-btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-[#7A263A]" />
-              Start over
-            </button>
+            <div className="flex items-center gap-2">
+              {isSpeaking && (
+                <button
+                  type="button"
+                  onClick={() => handleStopSpeaking(true)}
+                  className="px-3 py-1.5 rounded-lg bg-[#FEF2F2] hover:bg-[#FEE2E2] border border-[#FECACA] text-[#B91C1C] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Square className="w-3 h-3 fill-current" />
+                  {isLiveCallActive ? 'Interrupt & Speak' : 'Stop voice'}
+                </button>
+              )}
+
+              <button
+                id="cornerman-start-over-btn"
+                type="button"
+                onClick={() => {
+                  handleStopSpeaking(false);
+                  setProviderNotice(null);
+                  setVoiceNotice(null);
+                  onResetConversation();
+                }}
+                className="iron-btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[#7A263A]" />
+                Start over
+              </button>
+            </div>
           </div>
+
+          {/* Real-Time Live Voice Call Banner */}
+          {(isLiveCallActive || isSpeaking) && (
+            <div
+              id="gaffer-live-voice-bar"
+              role="status"
+              className={`px-3.5 py-2.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${
+                isSpeaking
+                  ? 'bg-[#FDF2F4] border-[#7A263A]/30'
+                  : 'bg-[#F0F9FF] border-[#BAE6FD]'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {/* Animated Voice Pulse Bars */}
+                <div
+                  aria-hidden="true"
+                  className="flex items-center gap-0.5 h-5 px-1.5 flex-shrink-0"
+                >
+                  {[0, 1, 2, 3].map((bar) => (
+                    <span
+                      key={bar}
+                      className={`w-1 rounded-full transition-all ${
+                        isSpeaking
+                          ? 'bg-[#7A263A] animate-pulse'
+                          : isListening
+                            ? 'bg-[#0284C7] animate-pulse'
+                            : 'bg-[#94A3B8]'
+                      }`}
+                      style={{
+                        height:
+                          isSpeaking || isListening
+                            ? `${10 + ((bar % 2) * 8)}px`
+                            : '6px',
+                        animationDelay: `${bar * 120}ms`,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-[#121518]">
+                    {isSpeaking
+                      ? 'The Gaffer is speaking (UK English)…'
+                      : isThinking
+                        ? 'The Gaffer is thinking…'
+                        : isListening
+                          ? 'Listening live in UK English — speak naturally'
+                          : 'Live voice ready'}
+                  </div>
+                  {liveTranscript && (
+                    <div className="text-xs text-[#0284C7] truncate font-medium">
+                      “{liveTranscript}”
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {liveTranscript && !isSpeaking && (
+                  <button
+                    type="button"
+                    onClick={handleCommitLiveUtteranceNow}
+                    className="iron-btn-primary py-1.5 px-3 text-xs cursor-pointer"
+                  >
+                    Send now
+                  </button>
+                )}
+                {isSpeaking && isLiveCallActive && (
+                  <button
+                    type="button"
+                    onClick={() => handleStopSpeaking(true)}
+                    className="iron-btn-secondary py-1.5 px-3 text-xs cursor-pointer"
+                  >
+                    Interrupt
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {voiceNotice && (
+            <div
+              role="status"
+              className="px-3 py-2 rounded-lg bg-[#FEF2F2] border border-[#FECACA] text-xs text-[#991B1B] flex items-center justify-between gap-2"
+            >
+              <span className="flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {voiceNotice}
+              </span>
+              <button
+                type="button"
+                onClick={() => setVoiceNotice(null)}
+                className="text-[11px] font-semibold underline cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {providerNotice && (
             <div
@@ -349,7 +954,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
               <button
                 key={idx}
                 type="button"
-                onClick={() => sendPrompt(chip, false)}
+                onClick={() => sendPrompt(chip, false, isLiveCallActive)}
                 className="text-left px-3 py-2 rounded-lg bg-white hover:bg-[#F1F5F9] border border-[#CBD5E1] text-xs font-medium text-[#121518] transition flex items-center justify-between gap-2 cursor-pointer"
               >
                 <span className="truncate">{chip}</span>
@@ -366,6 +971,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
         >
           {messages.map((msg) => {
             const isBot = msg.sender === 'cornerman';
+            const isThisMsgSpeaking = speakingMessageId === msg.id && isSpeaking;
             return (
               <div
                 key={msg.id}
@@ -382,19 +988,55 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 >
                   <div className="flex items-center justify-between gap-4 text-[11px]">
                     <span
-                      className={`font-semibold ${
+                      className={`font-semibold flex items-center gap-1.5 ${
                         isBot ? 'text-[#7A263A]' : 'text-white/90'
                       }`}
                     >
-                      {isBot ? 'Cornerman' : 'You'}
+                      {isBot && <GafferIcon className="w-3.5 h-3.5" />}
+                      {isBot ? 'The Gaffer' : 'You'}
                     </span>
-                    <span
-                      className={`font-mono-metric ${
-                        isBot ? 'text-[#475569]' : 'text-white/80'
-                      }`}
-                    >
-                      {msg.timestamp}
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {isBot && ttsSupported && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            isThisMsgSpeaking
+                              ? handleStopSpeaking(true)
+                              : speakMessage(msg.id, msg.text)
+                          }
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium transition cursor-pointer ${
+                            isThisMsgSpeaking
+                              ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                              : 'bg-white hover:bg-[#F1F5F9] text-[#334155] border-[#CBD5E1]'
+                          }`}
+                          aria-label={
+                            isThisMsgSpeaking
+                              ? 'Stop speaking message'
+                              : 'Listen to The Gaffer in UK English'
+                          }
+                        >
+                          {isThisMsgSpeaking ? (
+                            <>
+                              <Square className="w-2.5 h-2.5 fill-current" />
+                              Stop
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3 h-3 text-[#7A263A]" />
+                              Listen
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <span
+                        className={`font-mono-metric ${
+                          isBot ? 'text-[#475569]' : 'text-white/80'
+                        }`}
+                      >
+                        {msg.timestamp}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="text-xs sm:text-sm leading-relaxed whitespace-pre-line">
@@ -459,36 +1101,59 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
               role="status"
               className="flex items-center gap-2 text-xs text-[#334155] p-3 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] w-fit"
             >
-              <Bot className="w-4 h-4 text-[#7A263A] animate-pulse" />
-              Cornerman is thinking...
+              <GafferIcon className="w-4 h-4 text-[#7A263A] animate-pulse" />
+              The Gaffer is thinking...
             </div>
           )}
           <div ref={chatBottomRef} />
         </div>
 
-        {/* Input Form */}
+        {/* Input Form with Quick Voice Dictation */}
         <form
           onSubmit={handleChatSubmit}
-          className="p-4 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center gap-2.5"
+          className="p-4 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center gap-2"
         >
+          <button
+            id="gaffer-mic-btn"
+            type="button"
+            onClick={handleToggleDictation}
+            className={`p-2.5 rounded-xl border transition flex items-center justify-center cursor-pointer ${
+              isDictating
+                ? 'bg-[#DC2626] text-white border-[#DC2626] animate-pulse'
+                : 'bg-white hover:bg-[#F1F5F9] text-[#7A263A] border-[#CBD5E1]'
+            }`}
+            aria-label={isDictating ? 'Stop voice dictation' : 'Speak a message to The Gaffer'}
+            title={isDictating ? 'Stop speaking' : 'Speak message (UK English)'}
+          >
+            {isDictating ? (
+              <MicOff className="w-4 h-4" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
+          </button>
+
           <label htmlFor="cornerman-chat-input" className="sr-only">
-            Message Cornerman
+            Message The Gaffer
           </label>
           <input
             id="cornerman-chat-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message Cornerman (e.g., 'I’ve just finished a brutal shift and I’m about to go to the pub')..."
+            placeholder={
+              isDictating
+                ? 'Listening in UK English… speak now'
+                : "Message or speak to The Gaffer (e.g., 'I’ve just finished a brutal shift')..."
+            }
             className="flex-1 px-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs sm:text-sm text-[#121518]"
           />
           <button
             id="cornerman-send-btn"
             type="submit"
-            className="iron-btn-primary py-2.5 px-5 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
+            className="iron-btn-primary py-2.5 px-4 sm:px-5 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
           >
             <Send className="w-4 h-4" />
-            Send
+            <span className="hidden sm:inline">Send</span>
           </button>
         </form>
       </section>

@@ -93,7 +93,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                   Server-side AI credential protection active
                 </div>
                 <p className="text-[#334155]">
-                  Cornerman AI runs through the server-side Supabase Edge Function (<code>/functions/v1/cornerman</code>). Browser API key entry and <code>VITE_GEMINI_API_KEY</code> have been removed so provider credentials stay strictly on the server. If a provider key was ever used in a public client environment previously, rotate it in Google AI Studio and set the new secret via <code>supabase secrets set GEMINI_API_KEY=...</code>.
+                  The Gaffer AI runs through the server-side Supabase Edge Function (<code>/functions/v1/cornerman</code>). Browser API key entry and <code>VITE_GEMINI_API_KEY</code> have been removed so provider credentials stay strictly on the server. If a provider key was ever used in a public client environment previously, rotate it in Google AI Studio and set the new secret via <code>supabase secrets set GEMINI_API_KEY=...</code>.
                 </p>
               </div>
             </div>
