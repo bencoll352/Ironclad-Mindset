@@ -28,6 +28,8 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
         run: npm install --no-audit --no-fund
 
       - name: Lint
