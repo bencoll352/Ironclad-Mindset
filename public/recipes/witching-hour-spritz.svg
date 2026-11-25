@@ -1,0 +1,14 @@
+<svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Witching Hour Fiery Ginger and Lime Spritz">
+  <rect width="400" height="220" fill="#F8FAFC"/>
+  <!-- Highball glass -->
+  <rect x="155" y="28" width="90" height="164" rx="14" fill="#FFFFFF" stroke="#1BB1E7" stroke-width="4"/>
+  <rect x="161" y="64" width="78" height="122" rx="10" fill="#FEF3C7"/>
+  <!-- Ice cubes -->
+  <rect x="172" y="78" width="24" height="24" rx="5" fill="#FFFFFF" fill-opacity="0.85" stroke="#BAE6FD" stroke-width="1.5"/>
+  <rect x="202" y="96" width="24" height="24" rx="5" fill="#FFFFFF" fill-opacity="0.85" stroke="#BAE6FD" stroke-width="1.5"/>
+  <rect x="176" y="128" width="24" height="24" rx="5" fill="#FFFFFF" fill-opacity="0.85" stroke="#BAE6FD" stroke-width="1.5"/>
+  <!-- Lime wheel & straw -->
+  <circle cx="242" cy="46" r="20" fill="#22C55E" stroke="#15803D" stroke-width="3"/>
+  <circle cx="242" cy="46" r="13" fill="#BBF7D0"/>
+  <line x1="215" y1="18" x2="195" y2="150" stroke="#7A263A" stroke-width="5" stroke-linecap="round"/>
+</svg>

@@ -38,6 +38,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,svg,jpg,png,ico,woff2}'],
         globIgnores: ['**/kokoro-*.js', '**/ort-*.wasm'],
         navigateFallback: '/Ironclad-Mindset/index.html',

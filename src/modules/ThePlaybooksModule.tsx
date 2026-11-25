@@ -3,7 +3,10 @@ import {
   BookOpen,
   CheckCircle2,
   Copy,
+  Download,
   FileSignature,
+  Lock,
+  PhoneCall,
   Printer,
   Search,
   Sparkles,
@@ -12,6 +15,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { PippaIcon } from '../components/PippaIcon';
 import { PLAYBOOKS } from '../data/ironcladData';
+import { searchIroncladResources } from '../services/searchIndex';
 import { CBTWorksheetEntry, Playbook } from '../types/ironclad';
 
 interface ThePlaybooksModuleProps {
@@ -57,6 +61,30 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
     'East London Kitchens Ltd'
   );
   const [docuSealSignedBanner, setDocuSealSignedBanner] = useState<boolean>(false);
+  const [oramaMatchedIds, setOramaMatchedIds] = useState<string[] | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [frictionKitChecked, setFrictionKitChecked] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const q = searchQuery.trim();
+    if (!q) {
+      setOramaMatchedIds(null);
+      return;
+    }
+    searchIroncladResources(q, 'Playbook')
+      .then((hits) => {
+        if (!cancelled) {
+          setOramaMatchedIds(hits.map((h) => h.id));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOramaMatchedIds(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery]);
 
   useEffect(() => {
     if (initialOpenPlaybookId) {
@@ -86,15 +114,31 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
     }
   }, [activePlaybook, highlightedSectionIdx]);
 
-  const filteredPlaybooks = PLAYBOOKS.filter((pb) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      pb.title.toLowerCase().includes(q) ||
-      pb.subtitle.toLowerCase().includes(q) ||
-      pb.category.toLowerCase().includes(q) ||
-      pb.summary.toLowerCase().includes(q)
-    );
-  });
+  const filteredPlaybooks = searchQuery.trim()
+    ? oramaMatchedIds !== null
+      ? PLAYBOOKS.filter((pb) => oramaMatchedIds.includes(pb.id))
+      : PLAYBOOKS.filter((pb) => {
+          const q = searchQuery.toLowerCase();
+          return (
+            pb.title.toLowerCase().includes(q) ||
+            pb.subtitle.toLowerCase().includes(q) ||
+            pb.category.toLowerCase().includes(q) ||
+            pb.summary.toLowerCase().includes(q)
+          );
+        })
+    : PLAYBOOKS;
+
+  const handleDownloadPlaybookPdf = async (pb: Playbook) => {
+    setDownloadingPdfId(pb.id);
+    try {
+      const { downloadPlaybookPdf } = await import(
+        '../services/pdfGenerator'
+      );
+      await downloadPlaybookPdf(pb);
+    } finally {
+      setDownloadingPdfId(null);
+    }
+  };
 
   const handleCopyPlaybook = (pb: Playbook) => {
     const text = [
@@ -182,7 +226,7 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
             The Playbooks
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
-            Step-by-step guides for your first 30 days, £40 food shopping, UK matchdays, HALT & CBT reframing, and workplace policy.
+            6 visual guides covering your first 30 days, £40 food shopping, UK matchdays, HALT &amp; CBT reframing, workplace policy, and mind management.
           </p>
         </div>
 
@@ -196,13 +240,13 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search playbooks, CBT, pub scripts..."
+            placeholder="Instant search (e.g., pub, gamstop, cbt)..."
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs text-[#121518]"
           />
         </div>
       </section>
 
-      {/* Playbook Cards Grid */}
+      {/* Playbook Cards Grid (Symmetric 3x2 Desktop Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredPlaybooks.map((pb) => (
           <article
@@ -210,7 +254,7 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
             className="iron-card p-5 flex flex-col justify-between space-y-4"
           >
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#FDF2F4] text-[#7A263A] border border-[#7A263A]/20">
                   Playbook {pb.number} • {pb.category}
                 </span>
@@ -255,21 +299,30 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                   : 'Read full playbook'}
               </button>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleCopyPlaybook(pb)}
-                  className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="iron-btn-ghost py-2 px-2 text-[11px] flex items-center justify-center gap-1 cursor-pointer"
                 >
-                  <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
-                  {copiedId === pb.id ? 'Copied' : 'Copy text'}
+                  <Copy className="w-3 h-3 text-[#7A263A]" />
+                  {copiedId === pb.id ? 'Copied' : 'Copy'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadPlaybookPdf(pb)}
+                  disabled={downloadingPdfId === pb.id}
+                  className="iron-btn-ghost py-2 px-2 text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3 h-3 text-[#7A263A]" />
+                  {downloadingPdfId === pb.id ? 'PDF…' : 'PDF'}
                 </button>
                 <button
                   type="button"
                   onClick={() => onAskCornermanAboutPlaybook(pb)}
-                  className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="iron-btn-ghost py-2 px-2 text-[11px] flex items-center justify-center gap-1 cursor-pointer"
                 >
-                  <PippaIcon className="w-3.5 h-3.5 text-[#0284C7]" />
+                  <PippaIcon className="w-3 h-3 text-[#0284C7]" />
                   Ask Pippa
                 </button>
               </div>
@@ -345,6 +398,21 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                 </span>
                 <span className="text-[#121518]">{entry.ironcladReframe}</span>
               </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void import('../services/pdfGenerator').then(
+                      ({ downloadCbtEntryPdf }) => downloadCbtEntryPdf(entry)
+                    );
+                  }}
+                  className="iron-btn-ghost py-1.5 px-3 text-[11px] flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3 h-3 text-[#7A263A]" />
+                  Download PDF
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -381,22 +449,30 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                   </h2>
                 </div>
 
-                <div className="flex items-center gap-2 no-print">
+                <div className="flex flex-wrap items-center gap-2 no-print">
                   <button
                     type="button"
                     onClick={() => handleCopyPlaybook(activePlaybook)}
-                    className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-ghost py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
                     {copiedId === activePlaybook.id ? 'Copied' : 'Copy text'}
                   </button>
                   <button
                     type="button"
+                    onClick={() => void handleDownloadPlaybookPdf(activePlaybook)}
+                    className="iron-btn-ghost py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#7A263A]" />
+                    Download PDF
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => window.print()}
-                    className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                    className="iron-btn-ghost py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5 text-[#7A263A]" />
-                    Print / Save PDF
+                    Print
                   </button>
                   <button
                     type="button"
@@ -422,7 +498,7 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                 </div>
               </div>
 
-              <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+              <div className="p-5 sm:p-6 overflow-y-auto iron-scroll space-y-5">
                 <div className="iron-surface p-4">
                   <p className="text-xs sm:text-sm text-[#121518] leading-relaxed">
                     {activePlaybook.summary}
@@ -451,6 +527,20 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                           </span>
                         )}
                       </div>
+
+                      {sec.diagram && (
+                        <figure className="rounded-xl overflow-hidden border border-[#E2E8F0] bg-white p-2 space-y-1.5">
+                          <img
+                            src={sec.diagram.src}
+                            alt={sec.diagram.alt}
+                            className="w-full h-auto rounded-lg"
+                          />
+                          <figcaption className="text-[11px] text-[#475569] px-1">
+                            {sec.diagram.caption}
+                          </figcaption>
+                        </figure>
+                      )}
+
                       <div className="space-y-2.5 text-xs sm:text-sm text-[#334155] leading-relaxed">
                         {sec.body.map((p, i) => (
                           <p key={i}>{p}</p>
@@ -474,6 +564,84 @@ export const ThePlaybooksModule: React.FC<ThePlaybooksModuleProps> = ({
                     </div>
                   );
                 })}
+
+                {/* Lock the Accounts Gambling Friction Kit inside Playbook 6 */}
+                {activePlaybook.hasGamblingFrictionKit && (
+                  <div className="iron-surface p-5 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5" /> Lock the Accounts — 3-Step Friction Kit
+                        </span>
+                        <h3 className="font-display text-lg font-bold text-[#121518]">
+                          Payday &amp; Matchday Gambling Circuit-Breaker
+                        </h3>
+                      </div>
+                      <a
+                        href="tel:08088020133"
+                        className="iron-btn-ghost py-1.5 px-3 text-xs flex items-center gap-1.5"
+                      >
+                        <PhoneCall className="w-3.5 h-3.5 text-[#7A263A]" />
+                        GamCare 0808 8020 133
+                      </a>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {[
+                        {
+                          id: 'pb-bank',
+                          title:
+                            '1. UK Bank Card Gambling Blocks (Monzo, Starling, Barclays, Lloyds, HSBC, NatWest, Santander)',
+                          detail:
+                            'Turn on the gambling block inside your banking app—most UK banks enforce a 48-hour cooling-off lock before it can be turned off.',
+                        },
+                        {
+                          id: 'pb-gamstop',
+                          title: '2. Free UK Online Self-Exclusion via GAMSTOP (gamstop.co.uk)',
+                          detail:
+                            'One registration blocks access to all GB-licensed online gambling websites and apps for 6 months, 1 year, or 5 years.',
+                        },
+                        {
+                          id: 'pb-gamban',
+                          title: '3. Device-Level Blocking via Gamban (Free via GamCare)',
+                          detail:
+                            'Installs across your phone, tablet, and laptop to block thousands of gambling sites and apps even outside GB licences.',
+                        },
+                      ].map((step) => {
+                        const done = Boolean(frictionKitChecked[step.id]);
+                        return (
+                          <button
+                            key={step.id}
+                            type="button"
+                            onClick={() =>
+                              setFrictionKitChecked((prev) => ({
+                                ...prev,
+                                [step.id]: !done,
+                              }))
+                            }
+                            className={`w-full text-left p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer ${
+                              done ? 'iron-surface-selected' : 'bg-white border-[#CBD5E1]'
+                            }`}
+                          >
+                            <CheckCircle2
+                              className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                                done ? 'text-[#0284C7]' : 'text-[#94A3B8]'
+                              }`}
+                            />
+                            <div>
+                              <div className="text-xs font-semibold text-[#121518]">
+                                {step.title}
+                              </div>
+                              <div className="text-xs text-[#475569] mt-0.5">
+                                {step.detail}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Interactive HALT & CBT Worksheet inside Playbook 4 */}
                 {activePlaybook.isInteractiveCBT && (

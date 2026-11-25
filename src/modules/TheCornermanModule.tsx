@@ -29,7 +29,6 @@ import {
 import {
   createUkSpeechRecognizer,
   fetchVoiceboxProfiles,
-  formatVoiceLabel,
   getNeuralModelStatus,
   isSpeechRecognitionSupported,
   isSpeechSynthesisSupported,
@@ -40,9 +39,7 @@ import {
   PippaVoiceEngine,
   PippaVoicePreferences,
   preloadNeuralUkVoice,
-  rankUkVoices,
   savePippaVoicePrefs,
-  selectBestUkVoice,
   speakUkText,
   stopUkSpeech,
   subscribeNeuralModelStatus,
@@ -51,6 +48,10 @@ import {
   unlockPippaAudioContext,
   VoiceboxProfile,
 } from '../services/pippaSpeech';
+import {
+  CLEAN_BRITISH_VOICE_PRESETS,
+  resolveBrowserVoiceForCleanPreset,
+} from '../services/voiceEngine';
 import { ChatMessage, IntegrationConfig } from '../types/ironclad';
 
 interface TheCornermanModuleProps {
@@ -69,9 +70,12 @@ interface TheCornermanModuleProps {
 
 const QUICK_ACTION_CHIPS = [
   '5pm craving hit — talk me down',
-  "What's in the fridge? (15-minute meal)",
+  'Payday / Matchday gambling urge',
+  '3-min smoke / vape craving',
+  'Night-out / cocaine trigger',
+  "What's in the fridge? (15-min meal)",
   'UK pub or matchday sober script',
-  'Work stress and burnout check',
+  'Work stress & burnout check',
 ];
 
 const ACTION_BUTTON_LABELS: Record<CornermanActionId, string> = {
@@ -83,6 +87,7 @@ const ACTION_BUTTON_LABELS: Record<CornermanActionId, string> = {
   OPEN_PLAYBOOK_3: 'Open Playbook 3: Matchday & pub guide',
   OPEN_PLAYBOOK_4: 'Open Playbook 4: HALT & CBT worksheet',
   OPEN_PLAYBOOK_5: 'Open Playbook 5: Workplace charter',
+  OPEN_PLAYBOOK_6: 'Open Playbook 6: Mind management',
 };
 
 export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
@@ -147,21 +152,13 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
   const pendingUtteranceRef = useRef<string>('');
   const silenceTimerRef = useRef<number | null>(null);
 
-  const rankedBrowserVoices = useMemo(
-    () => rankUkVoices(availableVoices),
-    [availableVoices]
-  );
+  const [cleanPresetId, setCleanPresetId] = useState<string>('uk-female-warm');
 
-  const activeBrowserVoice = useMemo(
-    () => selectBestUkVoice(availableVoices, voicePrefs.browserVoiceURI),
-    [availableVoices, voicePrefs.browserVoiceURI]
-  );
-
-  const activeNeuralVoice = useMemo(
+  const activeCleanPreset = useMemo(
     () =>
-      KOKORO_UK_FEMALE_VOICES.find((v) => v.id === voicePrefs.neuralVoiceId) ||
-      KOKORO_UK_FEMALE_VOICES[0],
-    [voicePrefs.neuralVoiceId]
+      CLEAN_BRITISH_VOICE_PRESETS.find((p) => p.id === cleanPresetId) ||
+      CLEAN_BRITISH_VOICE_PRESETS[0],
+    [cleanPresetId]
   );
 
   useEffect(() => {
@@ -382,6 +379,9 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
         break;
       case 'OPEN_PLAYBOOK_5':
         onOpenPlaybookCitation('playbook-5', 0);
+        break;
+      case 'OPEN_PLAYBOOK_6':
+        onOpenPlaybookCitation('playbook-6', 0);
         break;
     }
   };
@@ -615,15 +615,9 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
     voicePrefs.engine === 'voicebox'
       ? `Voicebox (${
           voiceboxProfiles.find((p) => p.id === voicePrefs.voiceboxProfileId)?.name ||
-          'Connect locally'
+          'Local server'
         })`
-      : voicePrefs.engine === 'neural'
-        ? neuralStatus.state === 'ready'
-          ? `Human Neural · ${activeNeuralVoice.label.split('·')[0].trim()}`
-          : `${activeNeuralVoice.label.split('·')[0].trim()} (Neural)`
-        : activeBrowserVoice
-          ? formatVoiceLabel(activeBrowserVoice)
-          : 'UK English Browser';
+      : activeCleanPreset.label;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -660,7 +654,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
           </div>
 
           <p className="text-xs text-[#334155] leading-relaxed">
-            Have a real back-and-forth voice chat with <strong>Pippa</strong> in human UK English—built for after-shift cravings, pub scripts, and rough days. Everything stays private on your device.
+            Have a real back-and-forth voice chat with <strong>Pippa</strong> in human UK English—built for alcohol, drugs, smoking/vaping, gambling urges, and rough shifts.
           </p>
 
           {/* Primary Real-Time Voice Call Trigger */}
@@ -671,7 +665,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
               onClick={handleToggleLiveVoiceCall}
               className={`w-full py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer border ${
                 isLiveCallActive
-                  ? 'bg-[#DC2626] hover:bg-[#B91C1C] text-white border-[#DC2626]'
+                  ? 'bg-[#E63946] hover:bg-[#C81E2B] text-white border-[#E63946]'
                   : 'bg-[#0284C7] hover:bg-[#0369A1] text-white border-[#0284C7]'
               }`}
             >
@@ -700,7 +694,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 className="w-full py-2 px-3 rounded-lg bg-[#FDF2F4] hover:bg-[#FCE7EB] border border-[#7A263A]/25 text-xs font-semibold text-[#7A263A] flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Load Human Neural UK Voice (one-time ~86 MB)
+                Load Human Neural UK Voice (kokoro-js ready · ~86 MB)
               </button>
             )}
 
@@ -795,11 +789,14 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                   <select
                     id="pippa-neural-voice-select"
                     value={voicePrefs.neuralVoiceId}
-                    onChange={(e) =>
-                      updateVoicePrefs({
-                        neuralVoiceId: e.target.value as KokoroUkVoiceId,
-                      })
-                    }
+                    onChange={(e) => {
+                      const vid = e.target.value as KokoroUkVoiceId;
+                      updateVoicePrefs({ neuralVoiceId: vid });
+                      const matchPreset = CLEAN_BRITISH_VOICE_PRESETS.find(
+                        (p) => p.neuralVoiceId === vid
+                      );
+                      if (matchPreset) setCleanPresetId(matchPreset.id);
+                    }}
                     className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                   >
                     {KOKORO_UK_FEMALE_VOICES.map((v) => (
@@ -867,25 +864,29 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                     htmlFor="pippa-browser-voice-select"
                     className="block text-[11px] font-semibold text-[#121518] mb-1"
                   >
-                    System UK English voice
+                    British coach voice
                   </label>
                   <select
                     id="pippa-browser-voice-select"
-                    value={activeBrowserVoice?.voiceURI || voicePrefs.browserVoiceURI}
-                    onChange={(e) =>
-                      updateVoicePrefs({ browserVoiceURI: e.target.value })
-                    }
+                    value={cleanPresetId}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setCleanPresetId(nextId);
+                      const resolved = resolveBrowserVoiceForCleanPreset(
+                        nextId,
+                        availableVoices
+                      );
+                      updateVoicePrefs({
+                        browserVoiceURI: resolved?.voiceURI || '',
+                      });
+                    }}
                     className="w-full px-2.5 py-2 rounded-lg bg-white border border-[#CBD5E1] text-xs text-[#121518]"
                   >
-                    {rankedBrowserVoices.length === 0 ? (
-                      <option value="">System UK English Default</option>
-                    ) : (
-                      rankedBrowserVoices.map((v) => (
-                        <option key={v.voiceURI} value={v.voiceURI}>
-                          {formatVoiceLabel(v)}
-                        </option>
-                      ))
-                    )}
+                    {CLEAN_BRITISH_VOICE_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -947,13 +948,13 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 className="iron-btn-urgent py-2 px-3 text-xs flex items-center justify-center gap-2 cursor-pointer"
               >
                 <ShieldAlert className="w-4 h-4" />
-                Start Craving Reset (60s breathing)
+                Start Craving Reset (60s / 3m / Friction)
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={onOpenHaltWorksheet}
-                  className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="iron-btn-ghost py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <BookOpen className="w-3.5 h-3.5 text-[#7A263A]" />
                   Open HALT worksheet
@@ -961,7 +962,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                 <button
                   type="button"
                   onClick={onViewLifelines}
-                  className="iron-btn-secondary py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="iron-btn-ghost py-2 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <HeartHandshake className="w-3.5 h-3.5 text-[#0284C7]" />
                   View Lifelines
@@ -1010,17 +1011,17 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
       {/* Right Column: Live Voice & Conversation Thread */}
       <section
         aria-label="Pippa conversation"
-        className="lg:col-span-8 iron-card flex flex-col h-[680px] overflow-hidden"
+        className="lg:col-span-8 iron-card flex flex-col h-[700px] overflow-hidden"
       >
         {/* Top Bar: Quick Prompts & Start Over */}
         <div className="p-4 sm:p-5 bg-[#F8FAFC] border-b border-[#E2E8F0] space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-[#121518]">
-                Pippa — Live voice &amp; chat session
+                Private session — clears when you leave
               </span>
               <span className="text-xs text-[#475569] block">
-                Private check-in notes are never included in voice or chat requests.
+                Private check-in notes stay on your device and are never included in voice or chat requests.
               </span>
             </div>
 
@@ -1045,7 +1046,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
                   setVoiceNotice(null);
                   onResetConversation();
                 }}
-                className="iron-btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                className="iron-btn-ghost py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-[#7A263A]" />
                 Start over
@@ -1181,7 +1182,7 @@ export const TheCornermanModule: React.FC<TheCornermanModuleProps> = ({
         {/* Message List */}
         <div
           id="cornerman-messages-list"
-          className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 bg-white"
+          className="flex-1 p-4 sm:p-5 overflow-y-auto iron-scroll space-y-4 bg-white"
         >
           {messages.map((msg) => {
             const isBot = msg.sender === 'cornerman';

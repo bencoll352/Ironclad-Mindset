@@ -1,5 +1,6 @@
 import confetti from 'canvas-confetti';
 import {
+  Activity,
   Anchor,
   Award,
   Calendar,
@@ -10,6 +11,7 @@ import {
   Copy,
   Crown,
   Download,
+  Dumbbell,
   Flame,
   Hammer,
   Lock,
@@ -18,8 +20,11 @@ import {
   Shield,
   Sparkles,
   Star,
+  Target,
   Trash2,
+  TrendingUp,
   Upload,
+  X,
   Zap,
 } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
@@ -42,7 +47,16 @@ import {
   evaluateMilestoneProgress,
   IronMilestoneWithState,
 } from '../services/milestones';
-import { NonNegotiableTask } from '../types/ironclad';
+import {
+  analyzePatternRadar,
+  ILLUSTRATIVE_TREND_SAMPLE,
+} from '../services/patternRadar';
+import {
+  CommitmentTrack,
+  CommitmentTrackId,
+  NonNegotiableTask,
+  SavingsGoal,
+} from '../types/ironclad';
 
 interface TheForgeModuleProps {
   streakDays: number;
@@ -52,6 +66,11 @@ interface TheForgeModuleProps {
   onResetStreakKeepBadges: () => void;
   weeklySpendGBP: number;
   onChangeWeeklySpend: (spend: number) => void;
+  commitments: CommitmentTrack[];
+  onUpdateCommitments: (next: CommitmentTrack[]) => void;
+  savingsGoal: SavingsGoal;
+  onUpdateSavingsGoal: (next: SavingsGoal) => void;
+  onOpenMoveTheIron?: () => void;
   tasks: NonNegotiableTask[];
   onToggleTask: (id: string) => void;
   onAddCustomTask: (label: string) => void;
@@ -68,16 +87,20 @@ interface TheForgeModuleProps {
 const TRIGGER_SUGGESTIONS = [
   'After-shift fatigue',
   'Friday 5pm transition',
-  'Pub or social invite',
+  'Payday urge',
+  'Social circle / night out',
+  'Comedown / exhaustion',
+  'Saturday 3pm matchday',
   'Work stress',
   'Quiet evening alone',
 ];
 
 const HELPED_SUGGESTIONS = [
   'Cooked a proper meal',
+  'Move the Iron (20m reset)',
   'Craving Reset breathing',
+  '3-min nicotine surfer',
   '0.0% drink swap',
-  '15-minute walk outside',
   'Spoke with Pippa',
 ];
 
@@ -88,6 +111,11 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
   onResetStreakKeepBadges,
   weeklySpendGBP,
   onChangeWeeklySpend,
+  commitments,
+  onUpdateCommitments,
+  savingsGoal,
+  onUpdateSavingsGoal,
+  onOpenMoveTheIron,
   tasks,
   onToggleTask,
   onAddCustomTask,
@@ -102,6 +130,8 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
 
   // Check-in form state
   const [selectedDate, setSelectedDate] = useState<string>(todayISO);
+  const [selectedTrackId, setSelectedTrackId] =
+    useState<CommitmentTrackId>('alcohol');
   const [alcoholFree, setAlcoholFree] = useState<boolean>(true);
   const [cravingIntensity, setCravingIntensity] = useState<number>(2);
   const [mood, setMood] = useState<number>(8);
@@ -110,6 +140,17 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
   const [privateNote, setPrivateNote] = useState<string>('');
   const [newTaskText, setNewTaskText] = useState<string>('');
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  // De-duplicated milestone modal & goal/custom track editors
+  const [isMilestonesModalOpen, setIsMilestonesModalOpen] =
+    useState<boolean>(false);
+  const [isEditingGoal, setIsEditingGoal] = useState<boolean>(false);
+  const [goalTitleDraft, setGoalTitleDraft] = useState<string>(savingsGoal.title);
+  const [goalTargetDraft, setGoalTargetDraft] = useState<string>(
+    String(savingsGoal.targetGBP)
+  );
+  const [customTitleDraft, setCustomTitleDraft] = useState<string>('');
+  const [customSpendDraft, setCustomSpendDraft] = useState<string>('25');
 
   // Secondary Founder Story state (collapsed by default)
   const [manifestoExpanded, setManifestoExpanded] = useState<boolean>(false);
@@ -123,6 +164,12 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
   const milestoneSummary = useMemo(
     () => evaluateMilestoneProgress(streakDays, earnedBadges),
     [streakDays, earnedBadges]
+  );
+
+  // Local Pattern Radar correlation analytics
+  const patternRadar = useMemo(
+    () => analyzePatternRadar(checkIns),
+    [checkIns]
   );
 
   // Generate 28-day heatmap strictly from actual dated entries
@@ -147,12 +194,103 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
       }));
   }, [checkIns]);
 
-  const moneySavedGBP = ((streakDays / 7) * weeklySpendGBP).toFixed(0);
+  const activeChartData =
+    trendData.length > 0 ? trendData : ILLUSTRATIVE_TREND_SAMPLE;
+  const isSampleChart = trendData.length === 0;
+
+  const totalMoneyProtectedNumber = useMemo(() => {
+    return commitments.reduce((sum, track) => {
+      if (!track.enabled) return sum;
+      const days = track.id === 'alcohol' ? streakDays : track.streakDays;
+      const spend =
+        track.id === 'alcohol' ? weeklySpendGBP : track.weeklySpendGBP;
+      return sum + (days / 7) * spend;
+    }, 0);
+  }, [commitments, streakDays, weeklySpendGBP]);
+
+  const totalMoneyProtectedGBP = Math.round(totalMoneyProtectedNumber);
+  const goalProgressPct = Math.min(
+    100,
+    Math.round(
+      (totalMoneyProtectedNumber / Math.max(1, savingsGoal.targetGBP)) * 100
+    )
+  );
+
+  const toggleTrackEnabled = (trackId: CommitmentTrackId) => {
+    onUpdateCommitments(
+      commitments.map((t) =>
+        t.id === trackId ? { ...t, enabled: !t.enabled } : t
+      )
+    );
+  };
+
+  const incrementTrackDays = (trackId: CommitmentTrackId) => {
+    if (trackId === 'alcohol') {
+      onIncrementStreak();
+      return;
+    }
+    onUpdateCommitments(
+      commitments.map((t) =>
+        t.id === trackId ? { ...t, streakDays: t.streakDays + 1 } : t
+      )
+    );
+  };
+
+  const updateTrackWeeklySpend = (trackId: CommitmentTrackId, spend: number) => {
+    if (trackId === 'alcohol') {
+      onChangeWeeklySpend(spend);
+    }
+    onUpdateCommitments(
+      commitments.map((t) =>
+        t.id === trackId ? { ...t, weeklySpendGBP: spend } : t
+      )
+    );
+  };
+
+  const toggleGamblingPayday = () => {
+    onUpdateCommitments(
+      commitments.map((t) =>
+        t.id === 'gambling'
+          ? { ...t, paydayCheckInEnabled: !t.paydayCheckInEnabled }
+          : t
+      )
+    );
+  };
+
+  const handleSaveCustomTrack = (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = customTitleDraft.trim();
+    if (!title) return;
+    const spend = Math.max(5, Math.min(500, Number(customSpendDraft) || 25));
+    onUpdateCommitments(
+      commitments.map((t) =>
+        t.id === 'custom'
+          ? {
+              ...t,
+              enabled: true,
+              label: title,
+              customTitle: title,
+              weeklySpendGBP: spend,
+            }
+          : t
+      )
+    );
+    setCustomTitleDraft('');
+  };
+
+  const handleSaveSavingsGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = goalTitleDraft.trim() || 'Reward Target';
+    const targetGBP = Math.max(10, Math.min(10000, Number(goalTargetDraft) || 180));
+    onUpdateSavingsGoal({ title, targetGBP });
+    setIsEditingGoal(false);
+  };
 
   const loadDateIntoForm = (dateISO: string) => {
     setSelectedDate(dateISO);
     const existing = checkIns.find((c) => c.date === dateISO);
     if (existing) {
+      setSelectedTrackId(existing.trackId || 'alcohol');
       setAlcoholFree(existing.alcoholFree);
       setCravingIntensity(existing.cravingIntensity ?? 2);
       setMood(existing.mood ?? 8);
@@ -177,6 +315,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
 
     await onSaveCheckIn({
       date: selectedDate,
+      trackId: selectedTrackId,
       alcoholFree,
       cravingIntensity,
       mood,
@@ -331,7 +470,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                 );
                 setTimeout(() => setSavedNotice(null), 4000);
               }}
-              className="iron-btn-secondary py-2.5 px-3.5 text-xs flex items-center gap-1.5 cursor-pointer"
+              className="iron-btn-ghost py-2.5 px-3.5 text-xs flex items-center gap-1.5 cursor-pointer"
               title="Resets active streak to 0 while keeping all earned milestone badges"
             >
               <RotateCcw className="w-3.5 h-3.5 text-[#7A263A]" />
@@ -340,11 +479,11 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
           </div>
         </div>
 
-        {/* 3 Core Metrics: Current Streak, Next Milestone, Money Saved */}
+        {/* 3 Core Metrics: Current Streak, Next Milestone, Total Money Protected & Savings Goal */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="iron-surface p-4">
             <div className="text-xs font-medium text-[#475569]">
-              Current alcohol-free streak
+              Primary alcohol-free streak
             </div>
             <div
               id="current-streak-value"
@@ -396,49 +535,110 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
             ) : null}
           </div>
 
-          <div className="iron-surface p-4">
+          {/* Combined Money Protected + Tangible Savings Goal Tracker */}
+          <div className="iron-surface p-4 space-y-2.5">
             <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
-              <span>Estimated money saved</span>
-              <span>£{weeklySpendGBP}/wk baseline</span>
+              <span>Total Money Protected (£)</span>
+              <span>
+                {commitments.filter((t) => t.enabled).length} active{' '}
+                {commitments.filter((t) => t.enabled).length === 1 ? 'track' : 'tracks'}
+              </span>
             </div>
-            <div className="font-mono-metric text-3xl sm:text-4xl font-bold text-[#7A263A] mt-1">
-              £{moneySavedGBP}
+            <div
+              id="total-money-protected-hero"
+              className="font-mono-metric text-3xl sm:text-4xl font-bold text-[#7A263A]"
+            >
+              £{totalMoneyProtectedGBP}
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <label
-                htmlFor="weekly-spend-slider"
-                className="text-[11px] text-[#475569] whitespace-nowrap"
-              >
-                Weekly spend:
-              </label>
-              <input
-                id="weekly-spend-slider"
-                type="range"
-                min={15}
-                max={250}
-                step={5}
-                value={weeklySpendGBP}
-                onChange={(e) => onChangeWeeklySpend(Number(e.target.value))}
-                className="iron-slider w-full"
-              />
+
+            {/* Tangible Savings Goal Progress */}
+            <div className="pt-2 border-t border-[#E2E8F0] space-y-1.5">
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="font-semibold text-[#121518] flex items-center gap-1 truncate">
+                  <Target className="w-3.5 h-3.5 text-[#1BB1E7] shrink-0" />
+                  <span className="truncate">
+                    Goal: £{savingsGoal.targetGBP} — {savingsGoal.title}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGoalTitleDraft(savingsGoal.title);
+                    setGoalTargetDraft(String(savingsGoal.targetGBP));
+                    setIsEditingGoal((prev) => !prev);
+                  }}
+                  className="text-[#0284C7] font-semibold hover:underline shrink-0 cursor-pointer"
+                >
+                  {isEditingGoal ? 'Cancel' : 'Edit'}
+                </button>
+              </div>
+              <div className="w-full h-2 rounded-full bg-[#E2E8F0] overflow-hidden">
+                <div
+                  className="h-full bg-[#1BB1E7] transition-all duration-300"
+                  style={{ width: `${goalProgressPct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-[#475569]">
+                <span className="font-mono-metric font-semibold text-[#0284C7]">
+                  {goalProgressPct}% funded
+                </span>
+                <span>£{weeklySpendGBP}/wk alcohol baseline</span>
+              </div>
+
+              {isEditingGoal && (
+                <form
+                  onSubmit={handleSaveSavingsGoal}
+                  className="pt-1.5 flex flex-wrap gap-1.5 items-center"
+                >
+                  <input
+                    type="text"
+                    value={goalTitleDraft}
+                    onChange={(e) => setGoalTitleDraft(e.target.value)}
+                    placeholder="e.g., New trainers"
+                    className="flex-1 min-w-[110px] px-2 py-1 rounded border border-[#CBD5E1] text-xs bg-white text-[#121518]"
+                  />
+                  <input
+                    type="number"
+                    min={10}
+                    max={10000}
+                    value={goalTargetDraft}
+                    onChange={(e) => setGoalTargetDraft(e.target.value)}
+                    className="w-20 px-2 py-1 rounded border border-[#CBD5E1] text-xs bg-white text-[#121518]"
+                  />
+                  <button
+                    type="submit"
+                    className="iron-btn-primary px-2.5 py-1 text-[11px] cursor-pointer"
+                  >
+                    Save
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Daily Dashboard Milestones Strip (1–7, 14, 30, 90, 180, 365 days) */}
-        <div className="pt-4 border-t border-[#E2E8F0] space-y-2.5">
+        {/* De-Duplicated Compact Iron Milestones Strip (Modal opens full 12-card grid) */}
+        <div
+          id="iron-milestones-section"
+          className="pt-4 border-t border-[#E2E8F0] space-y-2.5"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#121518]">
-              Milestones ({milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} unlocked)
-            </span>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-semibold text-[#121518]">
+                Iron Milestones
+              </h2>
+              <span
+                id="iron-milestones-count"
+                className="font-mono-metric text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FDF2F4] text-[#7A263A] border border-[#7A263A]/30"
+              >
+                {milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} unlocked
+              </span>
+            </div>
             <button
+              id="view-full-badges-btn"
               type="button"
-              onClick={() =>
-                document
-                  .getElementById('iron-milestones-section')
-                  ?.scrollIntoView({ behavior: 'smooth' })
-              }
-              className="text-xs font-medium text-[#0284C7] hover:underline cursor-pointer"
+              onClick={() => setIsMilestonesModalOpen(true)}
+              className="iron-btn-ghost py-1 px-2.5 text-xs font-medium text-[#0284C7] cursor-pointer"
             >
               View full badge details
             </button>
@@ -469,11 +669,9 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                 <button
                   key={badge.id}
                   type="button"
-                  onClick={() =>
-                    document
-                      .getElementById('iron-milestones-section')
-                      ?.scrollIntoView({ behavior: 'smooth' })
-                  }
+                  data-milestone-days={badge.daysRequired}
+                  data-milestone-status={badge.status}
+                  onClick={() => setIsMilestonesModalOpen(true)}
                   title={`${badge.title} (${dayLabel}) — ${
                     isEarned
                       ? 'Earned'
@@ -493,6 +691,216 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* ================================================================= */}
+      {/* 1B. MULTI-TRACK COMMITMENT MANAGER                                */}
+      {/* ================================================================= */}
+      <section
+        aria-label="Multi-track commitment manager"
+        className="iron-card p-5 sm:p-6 space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-3">
+          <div>
+            <h2 className="font-display text-xl font-bold text-[#121518] flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#7A263A]" />
+              Multi-Track Commitments
+            </h2>
+            <p className="text-xs text-[#475569]">
+              Stack the tracks you are protecting right now — alcohol, substances, nicotine, gambling, or a personal habit.
+            </p>
+          </div>
+          <div className="text-xs font-mono-metric font-semibold text-[#7A263A]">
+            Combined protected: £{totalMoneyProtectedGBP}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+          {commitments.map((track) => {
+            const effectiveDays =
+              track.id === 'alcohol' ? streakDays : track.streakDays;
+            const effectiveSpend =
+              track.id === 'alcohol' ? weeklySpendGBP : track.weeklySpendGBP;
+            const trackSaved = Math.round((effectiveDays / 7) * effectiveSpend);
+            const unitsAvoided =
+              track.dailyUnitsBaseline && effectiveDays > 0
+                ? Math.round(effectiveDays * track.dailyUnitsBaseline)
+                : 0;
+
+            return (
+              <div
+                key={track.id}
+                className={`rounded-xl border p-4 space-y-3 transition ${
+                  track.enabled
+                    ? 'bg-white border-[#7A263A]/40'
+                    : 'bg-[#F8FAFC] border-[#E2E8F0] opacity-80'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-bold text-[#121518]">
+                      {track.id === 'custom' && track.customTitle
+                        ? track.customTitle
+                        : track.label}
+                    </div>
+                    <div className="text-[11px] text-[#475569]">
+                      {track.id === 'gambling'
+                        ? `Stakes Protected (£): £${trackSaved}`
+                        : `Saved: £${trackSaved} (£${effectiveSpend}/wk)`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleTrackEnabled(track.id)}
+                    aria-pressed={track.enabled}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer ${
+                      track.enabled
+                        ? 'bg-[#FDF2F4] text-[#7A263A] border-[#7A263A]/40'
+                        : 'bg-white text-[#475569] border-[#CBD5E1]'
+                    }`}
+                  >
+                    {track.enabled ? 'Active' : 'Enable'}
+                  </button>
+                </div>
+
+                {track.enabled && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-mono-metric text-2xl font-bold text-[#121518]">
+                          {effectiveDays}
+                        </span>{' '}
+                        <span className="text-xs text-[#475569]">
+                          {effectiveDays === 1 ? 'day' : 'days'}
+                        </span>
+                        {track.id === 'alcohol' && (
+                          <div className="text-[11px] text-[#0284C7] font-medium">
+                            ~{unitsAvoided || Math.round(effectiveDays * 4)} drinks avoided
+                          </div>
+                        )}
+                        {track.id === 'smoking' && (
+                          <div className="text-[11px] text-[#0284C7] font-medium">
+                            ~{unitsAvoided || Math.round(effectiveDays * 15)} cigs / pods avoided
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => incrementTrackDays(track.id)}
+                        className="iron-btn-ghost py-1.5 px-2.5 text-xs cursor-pointer"
+                      >
+                        +1 day
+                      </button>
+                    </div>
+
+                    {/* Track weekly spend slider */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-[#475569]">
+                        <span>Weekly baseline</span>
+                        <span className="font-mono-metric font-semibold text-[#121518]">
+                          £{effectiveSpend}/wk
+                        </span>
+                      </div>
+                      <input
+                        id={
+                          track.id === 'alcohol'
+                            ? 'weekly-spend-slider'
+                            : `weekly-spend-${track.id}`
+                        }
+                        type="range"
+                        min={10}
+                        max={250}
+                        step={5}
+                        value={effectiveSpend}
+                        onChange={(e) =>
+                          updateTrackWeeklySpend(track.id, Number(e.target.value))
+                        }
+                        className="iron-slider w-full"
+                      />
+                    </div>
+
+                    {/* Smoking/Vaping rapid physical recovery timeline */}
+                    {track.id === 'smoking' && (
+                      <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-lg p-2.5 text-[11px] space-y-1 text-[#334155]">
+                        <div className="font-semibold text-[#0284C7]">
+                          Rapid physical recovery milestones
+                        </div>
+                        <div>• 20 mins: heart rate &amp; blood pressure drop</div>
+                        <div
+                          className={
+                            effectiveDays >= 2 ? 'font-semibold text-[#121518]' : ''
+                          }
+                        >
+                          • 48 hrs: taste &amp; smell recover {effectiveDays >= 2 ? '✓' : ''}
+                        </div>
+                        <div
+                          className={
+                            effectiveDays >= 14 ? 'font-semibold text-[#121518]' : ''
+                          }
+                        >
+                          • 2 weeks: lung circulation improves{' '}
+                          {effectiveDays >= 14 ? '✓' : ''}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Drugs tailored triggers note */}
+                    {track.id === 'drugs' && (
+                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-2.5 text-[11px] text-[#475569]">
+                        Watch triggers: <strong className="text-[#121518]">social circle</strong>,{' '}
+                        <strong className="text-[#121518]">comedown</strong>,{' '}
+                        <strong className="text-[#121518]">shift exhaustion</strong>,{' '}
+                        <strong className="text-[#121518]">payday</strong>.
+                      </div>
+                    )}
+
+                    {/* Gambling Payday & Saturday 3pm Check-In toggle */}
+                    {track.id === 'gambling' && (
+                      <label className="flex items-center justify-between gap-2 bg-[#FDF2F4] border border-[#7A263A]/25 rounded-lg p-2.5 text-[11px] cursor-pointer">
+                        <span className="font-medium text-[#121518]">
+                          Payday &amp; Saturday 3 PM Kick-Off Check-In
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(track.paydayCheckInEnabled)}
+                          onChange={toggleGamblingPayday}
+                          className="accent-[#7A263A] w-4 h-4"
+                        />
+                      </label>
+                    )}
+
+                    {/* Custom habit rename */}
+                    {track.id === 'custom' && (
+                      <form onSubmit={handleSaveCustomTrack} className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={customTitleDraft}
+                          onChange={(e) => setCustomTitleDraft(e.target.value)}
+                          placeholder="Rename custom habit..."
+                          className="flex-1 min-w-0 px-2 py-1 rounded border border-[#CBD5E1] text-[11px] bg-white text-[#121518]"
+                        />
+                        <input
+                          type="number"
+                          min={5}
+                          max={500}
+                          value={customSpendDraft}
+                          onChange={(e) => setCustomSpendDraft(e.target.value)}
+                          className="w-16 px-2 py-1 rounded border border-[#CBD5E1] text-[11px] bg-white text-[#121518]"
+                        />
+                        <button
+                          type="submit"
+                          className="iron-btn-ghost px-2 py-1 text-[11px] cursor-pointer"
+                        >
+                          Set
+                        </button>
+                      </form>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -523,6 +931,33 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
             onSubmit={handleCheckInSubmit}
             className="space-y-4"
           >
+            {/* Focus track selector */}
+            <div>
+              <span className="block text-xs font-medium text-[#334155] mb-1.5">
+                Primary track for this check-in
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {commitments
+                  .filter((t) => t.enabled)
+                  .map((track) => (
+                    <button
+                      key={track.id}
+                      type="button"
+                      onClick={() => setSelectedTrackId(track.id)}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition ${
+                        selectedTrackId === track.id
+                          ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                          : 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0]'
+                      }`}
+                    >
+                      {track.id === 'custom' && track.customTitle
+                        ? track.customTitle
+                        : track.label}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label
@@ -556,7 +991,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                         : 'bg-white text-[#334155] border-[#CBD5E1]'
                     }`}
                   >
-                    Alcohol-free
+                    Clean / On track
                   </button>
                   <button
                     type="button"
@@ -820,15 +1255,22 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
             </div>
           </div>
 
-          {/* Recharts Logged Craving & Mood Trend View */}
+          {/* Recharts Logged Craving & Mood Trend View (with Illustrative Sample Fallback) */}
           <div className="pt-3 border-t border-[#E2E8F0]">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div>
-                <h3 className="text-sm font-semibold text-[#121518]">
-                  Self-reported craving and mood trends
+                <h3 className="text-sm font-semibold text-[#121518] flex items-center gap-2">
+                  <span>Self-reported craving and mood trends</span>
+                  {isSampleChart && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#F0F9FF] text-[#0284C7] border border-[#BAE6FD]">
+                      Illustrative sample curve
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-[#475569]">
-                  Plotted directly from your logged check-in dates
+                  {isSampleChart
+                    ? 'Save your first dated check-in on the left to replace this sample with your own curve.'
+                    : 'Plotted directly from your logged check-in dates'}
                 </p>
               </div>
               <div className="flex items-center gap-3 text-xs">
@@ -841,54 +1283,48 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
               </div>
             </div>
 
-            {trendData.length === 0 ? (
-              <div className="iron-surface p-6 text-center text-xs text-[#475569]">
-                No check-ins logged yet. Save your first check-in on the left to see your trend chart.
-              </div>
-            ) : (
-              <div className="h-44 w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                    <XAxis
-                      dataKey="dateLabel"
-                      tick={{ fontSize: 11, fill: '#475569' }}
-                      stroke="#CBD5E1"
-                    />
-                    <YAxis
-                      domain={[0, 10]}
-                      tick={{ fontSize: 11, fill: '#475569' }}
-                      stroke="#CBD5E1"
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#FFFFFF',
-                        borderColor: '#CBD5E1',
-                        borderRadius: '8px',
-                        fontSize: '12px',
-                        color: '#121518',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="mood"
-                      name="Mood (1-10)"
-                      stroke="#0284C7"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: '#0284C7' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="craving"
-                      name="Craving (0-10)"
-                      stroke="#7A263A"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: '#7A263A' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            <div className="h-44 w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={activeChartData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    tick={{ fontSize: 11, fill: '#475569' }}
+                    stroke="#CBD5E1"
+                  />
+                  <YAxis
+                    domain={[0, 10]}
+                    tick={{ fontSize: 11, fill: '#475569' }}
+                    stroke="#CBD5E1"
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#CBD5E1',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: '#121518',
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="mood"
+                    name="Mood (1-10)"
+                    stroke="#0284C7"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: '#0284C7' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="craving"
+                    name="Craving (0-10)"
+                    stroke="#7A263A"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: '#7A263A' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* Dated Check-in History List + Export / Restore / Delete Controls */}
@@ -902,7 +1338,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                   id="export-checkins-btn"
                   type="button"
                   onClick={handleExportClick}
-                  className="iron-btn-secondary py-1.5 px-2.5 text-[11px] flex items-center gap-1 cursor-pointer"
+                  className="iron-btn-ghost py-1.5 px-2.5 text-[11px] flex items-center gap-1 cursor-pointer"
                 >
                   <Download className="w-3 h-3 text-[#7A263A]" /> Export JSON
                 </button>
@@ -910,7 +1346,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                   id="restore-checkins-btn"
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="iron-btn-secondary py-1.5 px-2.5 text-[11px] flex items-center gap-1 cursor-pointer"
+                  className="iron-btn-ghost py-1.5 px-2.5 text-[11px] flex items-center gap-1 cursor-pointer"
                 >
                   <Upload className="w-3 h-3 text-[#0284C7]" /> Restore JSON
                 </button>
@@ -926,7 +1362,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                     id="clear-all-checkins-btn"
                     type="button"
                     onClick={() => onClearAllCheckIns()}
-                    className="iron-btn-secondary py-1.5 px-2.5 text-[11px] text-[#DC2626] flex items-center gap-1 cursor-pointer"
+                    className="iron-btn-ghost py-1.5 px-2.5 text-[11px] text-[#DC2626] flex items-center gap-1 cursor-pointer"
                   >
                     <Trash2 className="w-3 h-3" /> Clear all
                   </button>
@@ -934,7 +1370,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
               </div>
             </div>
 
-            <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-44 overflow-y-auto iron-scroll pr-1">
               {checkIns
                 .slice()
                 .sort((a, b) => b.date.localeCompare(a.date))
@@ -959,8 +1395,13 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
                               : 'bg-[#FEF2F2] text-[#B91C1C]'
                           }`}
                         >
-                          {entry.alcoholFree ? 'Alcohol-free' : 'Setback'}
+                          {entry.alcoholFree ? 'On track' : 'Setback'}
                         </span>
+                        {entry.trackId && (
+                          <span className="text-[10px] uppercase tracking-wide text-[#475569]">
+                            {entry.trackId}
+                          </span>
+                        )}
                         {typeof entry.cravingIntensity === 'number' && (
                           <span className="text-[11px] text-[#475569]">
                             Craving {entry.cravingIntensity}/10
@@ -992,94 +1433,67 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
       </div>
 
       {/* ================================================================= */}
-      {/* 4. IRON MILESTONES (ALL 12 BADGES: 1,2,3,4,5,6,7,14,30,90,180,365)*/}
+      {/* 4. YOUR PATTERN RADAR (ON-DEVICE TRIGGER CORRELATION ENGINE)      */}
       {/* ================================================================= */}
       <section
-        id="iron-milestones-section"
-        aria-label="Iron Milestones"
+        id="pattern-radar-section"
+        aria-label="Your Pattern Radar"
         className="iron-card p-5 sm:p-6 space-y-4"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-3">
           <div>
-            <h2 className="font-display text-xl font-bold text-[#121518]">
-              Iron Milestones
+            <span className="text-xs font-semibold text-[#0284C7] uppercase tracking-wide flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" />
+              On-device trigger correlation
+            </span>
+            <h2 className="font-display text-xl font-bold text-[#121518] mt-0.5">
+              Your Pattern Radar
             </h2>
-            <p className="text-xs text-[#475569]">
-              Earned badges are saved permanently—even if your active streak resets.
-            </p>
           </div>
-          <span
-            id="iron-milestones-count"
-            className="font-mono-metric text-xs font-bold px-3 py-1 rounded-full bg-[#FDF2F4] text-[#7A263A] border border-[#7A263A]/30"
-          >
-            {milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} unlocked
-          </span>
+
+          {onOpenMoveTheIron && (
+            <button
+              type="button"
+              onClick={onOpenMoveTheIron}
+              className="iron-btn-ghost py-2 px-3 text-xs flex items-center gap-1.5 self-start sm:self-center cursor-pointer"
+            >
+              <Dumbbell className="w-3.5 h-3.5 text-[#7A263A]" />
+              Prep 20-min Move the Iron reset
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {milestoneSummary.milestones.map((badge) => {
-            const isEarned = badge.status === 'earned';
-            const isNext = badge.status === 'next';
+        <div className="iron-surface-selected p-4 text-sm text-[#121518] font-medium">
+          {patternRadar.headlineInsight}
+        </div>
 
-            let cardClasses =
-              'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569]';
-            if (isEarned) {
-              cardClasses =
-                'bg-white border-[#7A263A] text-[#121518] shadow-2xs';
-            } else if (isNext) {
-              cardClasses =
-                'bg-[#F0F9FF] border-[#0284C7] text-[#121518] ring-1 ring-[#0284C7]';
-            }
-
-            return (
-              <div
-                key={badge.id}
-                data-milestone-days={badge.daysRequired}
-                data-milestone-status={badge.status}
-                className={`rounded-xl p-3.5 border flex flex-col justify-between transition ${cardClasses}`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="font-mono-metric text-sm font-bold text-[#121518]">
-                      Day {badge.daysRequired}
-                    </span>
-                    {isEarned ? (
-                      renderBadgeIcon(badge)
-                    ) : isNext ? (
-                      renderBadgeIcon(badge)
-                    ) : (
-                      <Lock className="w-3.5 h-3.5 text-[#94A3B8]" />
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-xs text-[#121518]">
-                      {badge.title}
-                    </div>
-                    <div className="text-[11px] text-[#475569] mt-0.5 leading-snug">
-                      {badge.subtitle}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-2 border-t border-[#E2E8F0] flex items-center justify-between">
-                  {isEarned ? (
-                    <span className="text-[11px] font-semibold text-[#7A263A] flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Earned
-                    </span>
-                  ) : isNext ? (
-                    <span className="text-[11px] font-semibold text-[#0284C7]">
-                      Next • {badge.daysRemaining}d left
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-[#475569]">
-                      Locked • {badge.daysRemaining}d left
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="iron-surface p-3">
+            <div className="text-[#475569]">Top logged trigger</div>
+            <div className="font-semibold text-[#121518] mt-1">
+              {patternRadar.topTrigger || 'Not tagged yet'}
+            </div>
+          </div>
+          <div className="iron-surface p-3">
+            <div className="text-[#475569]">Peak pressure day</div>
+            <div className="font-semibold text-[#121518] mt-1">
+              {patternRadar.peakDayOfWeek || 'Needs check-ins'}
+            </div>
+          </div>
+          <div className="iron-surface p-3">
+            <div className="text-[#475569]">Strongest counter-move</div>
+            <div className="font-semibold text-[#7A263A] mt-1">
+              {patternRadar.bestCopingTool || 'Keep logging'}
+            </div>
+          </div>
+          <div className="iron-surface p-3">
+            <div className="text-[#475569]">Avg craving / mood</div>
+            <div className="font-mono-metric font-semibold text-[#121518] mt-1">
+              {patternRadar.averageCraving !== null
+                ? `${patternRadar.averageCraving}/10 · ${patternRadar.averageMood ?? '—'}/10`
+                : 'Sample preview'}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1107,7 +1521,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
             <button
               type="button"
               onClick={handleCopyScript}
-              className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+              className="iron-btn-ghost py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5 text-[#7A263A]" />
               {copiedManifesto ? 'Copied script' : 'Copy launch script'}
@@ -1117,7 +1531,7 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
               type="button"
               onClick={() => setManifestoExpanded((prev) => !prev)}
               aria-expanded={manifestoExpanded}
-              className="iron-btn-secondary py-2 px-3 text-xs flex items-center gap-1 cursor-pointer"
+              className="iron-btn-ghost py-2 px-3 text-xs flex items-center gap-1 cursor-pointer"
             >
               {manifestoExpanded ? (
                 <>
@@ -1155,6 +1569,104 @@ export const TheForgeModule: React.FC<TheForgeModuleProps> = ({
           </div>
         )}
       </section>
+
+      {/* ================================================================= */}
+      {/* DE-DUPLICATED FULL 12-BADGE IRON MILESTONES MODAL                 */}
+      {/* ================================================================= */}
+      {isMilestonesModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full Iron Milestones badge details"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setIsMilestonesModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-4xl bg-white border border-[#CBD5E1] rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between gap-2">
+              <div>
+                <h2 className="font-display text-xl font-bold text-[#121518]">
+                  Iron Milestones ({milestoneSummary.unlockedCount} of {milestoneSummary.totalCount} unlocked)
+                </h2>
+                <p className="text-xs text-[#475569]">
+                  Earned badges are saved permanently—even if your active streak resets.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMilestonesModalOpen(false)}
+                aria-label="Close badge details modal"
+                className="p-2 rounded-lg text-[#475569] hover:bg-[#F1F5F9] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto iron-scroll grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {milestoneSummary.milestones.map((badge) => {
+                const isEarned = badge.status === 'earned';
+                const isNext = badge.status === 'next';
+
+                let cardClasses =
+                  'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569]';
+                if (isEarned) {
+                  cardClasses =
+                    'bg-white border-[#7A263A] text-[#121518] shadow-2xs';
+                } else if (isNext) {
+                  cardClasses =
+                    'bg-[#F0F9FF] border-[#0284C7] text-[#121518] ring-1 ring-[#0284C7]';
+                }
+
+                return (
+                  <div
+                    key={badge.id}
+                    className={`rounded-xl p-3.5 border flex flex-col justify-between transition ${cardClasses}`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-mono-metric text-sm font-bold text-[#121518]">
+                          Day {badge.daysRequired}
+                        </span>
+                        {isEarned || isNext ? (
+                          renderBadgeIcon(badge)
+                        ) : (
+                          <Lock className="w-3.5 h-3.5 text-[#94A3B8]" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-xs text-[#121518]">
+                          {badge.title}
+                        </div>
+                        <div className="text-[11px] text-[#475569] mt-0.5 leading-snug">
+                          {badge.subtitle}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-[#E2E8F0]">
+                      {isEarned ? (
+                        <span className="text-[11px] font-semibold text-[#7A263A] flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Earned
+                        </span>
+                      ) : isNext ? (
+                        <span className="text-[11px] font-semibold text-[#0284C7]">
+                          Next • {badge.daysRemaining}d left
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#475569]">
+                          Locked • {badge.daysRemaining}d left
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

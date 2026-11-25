@@ -1,0 +1,28 @@
+<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Two Pathways and The 60-Second Pause">
+  <rect width="720" height="250" rx="16" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+  <text x="360" y="32" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" font-weight="700" fill="#121518">THE TWO PATHWAYS &amp; THE 60-SECOND PAUSE</text>
+
+  <!-- Trigger -->
+  <rect x="28" y="94" width="142" height="72" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="99" y="124" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#121518">Trigger Hits</text>
+  <text x="99" y="144" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#475569">5pm · Payday · Stress</text>
+
+  <!-- The Pause -->
+  <circle cx="255" cy="130" r="46" fill="#7A263A"/>
+  <text x="255" y="126" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF">THE PAUSE</text>
+  <text x="255" y="143" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#FDE8EC">4-4-4-4 Breath</text>
+
+  <line x1="170" y1="130" x2="205" y2="130" stroke="#7A263A" stroke-width="3"/>
+
+  <!-- Upper Autopilot Pathway -->
+  <path d="M298 106 L372 72" stroke="#DC2626" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <rect x="376" y="46" width="314" height="68" rx="12" fill="#FEF2F2" stroke="#FECACA" stroke-width="2"/>
+  <text x="533" y="72" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#B91C1C">Pathway A: Impulse Saboteur (0s Pause)</text>
+  <text x="533" y="92" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#334155">Old loop fires → Short relief → 7am regret &amp; depleted mood</text>
+
+  <!-- Lower Ironclad Pathway -->
+  <path d="M298 154 L372 184" stroke="#0284C7" stroke-width="3"/>
+  <rect x="376" y="142" width="314" height="74" rx="12" fill="#F0F9FF" stroke="#1BB1E7" stroke-width="2"/>
+  <text x="533" y="168" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#0284C7">Pathway B: Ironclad Anchor (60s Pause)</text>
+  <text x="533" y="188" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#121518">Nurture (Water/Food/Move) → Safe release → Clear 7am win</text>
+</svg>

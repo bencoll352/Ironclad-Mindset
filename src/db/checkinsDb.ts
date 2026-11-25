@@ -1,8 +1,10 @@
 import Dexie, { type Table } from 'dexie';
+import type { CommitmentTrackId } from '../types/ironclad';
 
 export interface DatedCheckIn {
   date: string; // Primary key: YYYY-MM-DD (guarantees 1 entry per calendar date, no duplicates on edit)
   alcoholFree: boolean;
+  trackId?: CommitmentTrackId;
   cravingIntensity?: number; // Optional 1–10
   mood?: number; // Optional 1–10
   sleep?: number; // Optional 1–10

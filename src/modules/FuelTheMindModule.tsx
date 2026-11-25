@@ -4,6 +4,7 @@ import {
   ChefHat,
   Clock,
   Copy,
+  Download,
   Flame,
   Plus,
   RotateCcw,
@@ -21,7 +22,7 @@ import {
 interface FuelTheMindModuleProps {
   shoppingList: ShoppingIngredient[];
   onToggleShopItem: (id: string) => void;
-  onAddRecipeToShop: (recipe: Recipe) => void;
+  onAddRecipeToShop: (recipe: Recipe, batchMultiplier?: number) => void;
   onRemoveShopItem: (id: string) => void;
   onResetDefaultShop: () => void;
   highlightedRecipeId?: string | null;
@@ -42,6 +43,8 @@ const AISLES: ShoppingIngredient['aisle'][] = [
   'Drinks',
 ];
 
+const BATCH_OPTIONS = [1, 2, 4] as const;
+
 export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
   shoppingList,
   onToggleShopItem,
@@ -54,7 +57,9 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
   const [expandedRecipeId, setExpandedRecipeId] = useState<string>(
     highlightedRecipeId || RECIPES[0].id
   );
+  const [batchByRecipe, setBatchByRecipe] = useState<Record<string, number>>({});
   const [copiedShopBanner, setCopiedShopBanner] = useState<boolean>(false);
+  const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
   const [addedRecipeBanner, setAddedRecipeBanner] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,9 +101,21 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
     setTimeout(() => setCopiedShopBanner(false), 3000);
   };
 
-  const handleAddRecipeClick = (recipe: Recipe) => {
-    onAddRecipeToShop(recipe);
-    setAddedRecipeBanner(recipe.title);
+  const handleDownloadShopPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const { downloadShoppingListPdf } = await import(
+        '../services/pdfGenerator'
+      );
+      await downloadShoppingListPdf(shoppingList, totalBasketGBP);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleAddRecipeClick = (recipe: Recipe, mult: number) => {
+    onAddRecipeToShop(recipe, mult);
+    setAddedRecipeBanner(`${recipe.title} (${mult}x batch)`);
     setTimeout(() => setAddedRecipeBanner(null), 2800);
   };
 
@@ -108,13 +125,13 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
       <section className="iron-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
-            <ChefHat className="w-4 h-4" /> Practical nutrition & £40 weekly budget
+            <ChefHat className="w-4 h-4" /> Practical nutrition &amp; £40 weekly budget
           </span>
           <h1 className="font-display text-2xl font-bold text-[#121518] mt-0.5">
             Fuel the Mind
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
-            Chef-built 15-minute shift meals and alcohol-free 5pm swaps designed to steady energy on £40 a week.
+            Chef-built 15-minute shift meals with batch scaling and alcohol-free 5pm swaps on £40 a week.
           </p>
         </div>
 
@@ -155,15 +172,35 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
         <div className="lg:col-span-7 space-y-4">
           {filteredRecipes.map((recipe) => {
             const isExpanded = expandedRecipeId === recipe.id;
+            const mult = batchByRecipe[recipe.id] ?? 1;
+            const scaledCost = recipe.costPerServingGBP * mult;
+
             return (
               <article
                 key={recipe.id}
                 id={recipe.id}
                 className="iron-card overflow-hidden transition"
               >
-                <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                  {/* Overhead Culinary Thumbnail */}
+                  {recipe.imageUrl && (
+                    <div
+                      onClick={() =>
+                        setExpandedRecipeId(isExpanded ? '' : recipe.id)
+                      }
+                      className="w-full sm:w-32 h-24 rounded-xl overflow-hidden border border-[#E2E8F0] bg-[#F8FAFC] flex-shrink-0 cursor-pointer"
+                    >
+                      <img
+                        src={recipe.imageUrl}
+                        alt={recipe.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+
                   <div
-                    className="space-y-1.5 cursor-pointer flex-1"
+                    className="space-y-1.5 cursor-pointer flex-1 min-w-0"
                     onClick={() =>
                       setExpandedRecipeId(isExpanded ? '' : recipe.id)
                     }
@@ -174,7 +211,7 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                       </span>
                       <span>•</span>
                       <span className="font-mono-metric font-semibold text-[#7A263A]">
-                        £{recipe.costPerServingGBP.toFixed(2)} per serving
+                        £{scaledCost.toFixed(2)} ({mult}x {mult === 1 ? 'portion' : 'batch'})
                       </span>
                     </div>
 
@@ -184,21 +221,48 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                     <p className="text-xs text-[#475569]">{recipe.subtitle}</p>
                   </div>
 
-                  <div className="flex sm:flex-col items-stretch sm:items-end gap-2">
+                  <div className="flex sm:flex-col items-stretch sm:items-end gap-2 flex-shrink-0">
+                    {/* Batch Prep Serving Scaler */}
+                    <div
+                      role="group"
+                      aria-label={`Batch scaler for ${recipe.title}`}
+                      className="inline-flex rounded-lg border border-[#CBD5E1] overflow-hidden bg-[#F8FAFC]"
+                    >
+                      {BATCH_OPTIONS.map((b) => {
+                        const active = mult === b;
+                        return (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() =>
+                              setBatchByRecipe((prev) => ({ ...prev, [recipe.id]: b }))
+                            }
+                            className={`px-2.5 py-1 text-[11px] font-semibold cursor-pointer transition ${
+                              active
+                                ? 'bg-[#7A263A] text-white'
+                                : 'text-[#334155] hover:bg-white'
+                            }`}
+                          >
+                            {b}x{b > 1 ? ' Batch' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => handleAddRecipeClick(recipe)}
+                      onClick={() => handleAddRecipeClick(recipe, mult)}
                       className="iron-btn-primary py-2 px-3.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Add ingredients to shop
+                      Add {mult}x to shop
                     </button>
                     <button
                       type="button"
                       onClick={() =>
                         setExpandedRecipeId(isExpanded ? '' : recipe.id)
                       }
-                      className="iron-btn-secondary py-1.5 px-3 text-xs cursor-pointer"
+                      className="iron-btn-ghost py-1.5 px-3 text-xs cursor-pointer"
                     >
                       {isExpanded ? 'Hide method' : 'View recipe & macros'}
                     </button>
@@ -209,27 +273,29 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                   <div className="px-5 pb-5 pt-3 border-t border-[#E2E8F0] space-y-4 bg-[#F8FAFC]">
                     <div className="grid grid-cols-4 gap-2 bg-white border border-[#E2E8F0] rounded-xl p-3 text-center">
                       <div>
-                        <div className="text-[11px] text-[#475569]">Calories</div>
+                        <div className="text-[11px] text-[#475569]">
+                          Calories ({mult}x)
+                        </div>
                         <div className="font-mono-metric text-sm font-bold text-[#121518]">
-                          {recipe.macros.calories} kcal
+                          {recipe.macros.calories * mult} kcal
                         </div>
                       </div>
                       <div>
                         <div className="text-[11px] text-[#475569]">Protein</div>
                         <div className="font-mono-metric text-sm font-bold text-[#7A263A]">
-                          {recipe.macros.proteinG}g
+                          {recipe.macros.proteinG * mult}g
                         </div>
                       </div>
                       <div>
                         <div className="text-[11px] text-[#475569]">Carbs</div>
                         <div className="font-mono-metric text-sm font-bold text-[#121518]">
-                          {recipe.macros.carbsG}g
+                          {recipe.macros.carbsG * mult}g
                         </div>
                       </div>
                       <div>
                         <div className="text-[11px] text-[#475569]">Fats</div>
                         <div className="font-mono-metric text-sm font-bold text-[#121518]">
-                          {recipe.macros.fatsG}g
+                          {recipe.macros.fatsG * mult}g
                         </div>
                       </div>
                     </div>
@@ -246,7 +312,7 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                       <div className="md:col-span-5 bg-white border border-[#E2E8F0] rounded-xl p-3.5 space-y-2">
                         <div className="text-xs font-semibold text-[#121518]">
-                          Ingredients (Aldi / Tesco est.)
+                          Ingredients ({mult}x · Aldi / Tesco est.)
                         </div>
                         <ul className="space-y-1.5 text-xs">
                           {recipe.ingredients.map((ing, i) => (
@@ -254,9 +320,11 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                               key={i}
                               className="flex items-center justify-between gap-2 py-1 border-b border-[#E2E8F0] last:border-none"
                             >
-                              <span className="text-[#334155]">{ing.name}</span>
+                              <span className="text-[#334155]">
+                                {ing.name} ({mult > 1 ? `${mult} × ${ing.quantity}` : ing.quantity})
+                              </span>
                               <span className="font-mono-metric text-[#121518] font-medium whitespace-nowrap">
-                                £{ing.estimatedPriceGBP.toFixed(2)}
+                                £{(ing.estimatedPriceGBP * mult).toFixed(2)}
                               </span>
                             </li>
                           ))}
@@ -316,7 +384,7 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
                 <div className="w-28 h-2 bg-[#E2E8F0] rounded-full overflow-hidden mt-1.5">
                   <div
                     className={`h-full ${
-                      totalBasketGBP <= 40 ? 'bg-[#7A263A]' : 'bg-[#DC2626]'
+                      totalBasketGBP <= 40 ? 'bg-[#7A263A]' : 'bg-[#E63946]'
                     }`}
                     style={{
                       width: `${Math.min(100, (totalBasketGBP / 40) * 100)}%`,
@@ -326,7 +394,7 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
               </div>
             </div>
 
-            <div className="space-y-4 max-h-[440px] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[420px] overflow-y-auto iron-scroll pr-1">
               {AISLES.map((aisle) => {
                 const items = shoppingList.filter((i) => i.aisle === aisle);
                 if (items.length === 0) return null;
@@ -395,17 +463,26 @@ export const FuelTheMindModule: React.FC<FuelTheMindModuleProps> = ({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-[#E2E8F0]">
+          <div className="pt-2 border-t border-[#E2E8F0] grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               id="copy-shopping-list-btn"
               type="button"
               onClick={handleCopyListToKeep}
-              className="iron-btn-primary w-full py-2.5 px-4 text-xs flex items-center justify-center gap-2 cursor-pointer"
+              className="iron-btn-primary py-2.5 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Copy className="w-4 h-4" />
-              {copiedShopBanner
-                ? 'Copied list to clipboard'
-                : 'Copy list to Google Keep / Notes'}
+              <Copy className="w-3.5 h-3.5" />
+              {copiedShopBanner ? 'Copied list' : 'Copy to Keep / Notes'}
+            </button>
+
+            <button
+              id="download-shop-pdf-btn"
+              type="button"
+              onClick={() => void handleDownloadShopPdf()}
+              disabled={downloadingPdf}
+              className="iron-btn-ghost py-2.5 px-3 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-[#7A263A]" />
+              {downloadingPdf ? 'Generating PDF…' : 'Download Shop PDF'}
             </button>
           </div>
         </aside>

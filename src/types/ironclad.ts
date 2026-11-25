@@ -6,10 +6,35 @@ import {
 export type ModuleId =
   | 'forge'
   | 'cornerman'
+  | 'move'
   | 'fuel'
   | 'playbooks'
   | 'lifelines'
-  | 'locker';
+  | 'locker'
+  | 'workplaces';
+
+export type CommitmentTrackId =
+  | 'alcohol'
+  | 'drugs'
+  | 'smoking'
+  | 'gambling'
+  | 'custom';
+
+export interface CommitmentTrack {
+  id: CommitmentTrackId;
+  enabled: boolean;
+  label: string; // e.g., "Alcohol-Free", "Days Clean", "Smoke / Vape-Free", "Bet-Free"
+  streakDays: number;
+  weeklySpendGBP: number;
+  dailyUnitsBaseline?: number; // Drinks/day, cigarettes/pods/day, etc.
+  customTitle?: string;
+  paydayCheckInEnabled?: boolean; // Gambling Saturday 3 PM / Payday check-in toggle
+}
+
+export interface SavingsGoal {
+  title: string;
+  targetGBP: number;
+}
 
 export interface NonNegotiableTask {
   id: string;
@@ -49,6 +74,7 @@ export interface Recipe {
   id: string;
   title: string;
   subtitle: string;
+  imageUrl?: string;
   prepTimeMins: number;
   costPerServingGBP: number;
   categories: RecipeCategory[];
@@ -70,11 +96,18 @@ export interface Recipe {
   method: string[];
 }
 
+export interface PlaybookDiagram {
+  src: string;
+  alt: string;
+  caption: string;
+}
+
 export interface PlaybookSection {
   heading: string;
   badge?: string;
   body: string[];
   actionPoints?: string[];
+  diagram?: PlaybookDiagram;
 }
 
 export interface Playbook {
@@ -83,12 +116,19 @@ export interface Playbook {
   title: string;
   subtitle: string;
   readTime: string;
-  category: 'Sobriety' | 'Nutrition' | 'Social & Pub' | 'CBT & Mindset' | 'B2B Policy';
+  category:
+    | 'Sobriety'
+    | 'Nutrition'
+    | 'Social & Pub'
+    | 'CBT & Mindset'
+    | 'B2B Policy'
+    | 'Mind Management';
   summary: string;
   keyTakeaways: string[];
   sections: PlaybookSection[];
   isInteractiveCBT?: boolean;
   isB2BPolicy?: boolean;
+  hasGamblingFrictionKit?: boolean;
 }
 
 export interface CBTWorksheetEntry {
@@ -103,16 +143,23 @@ export interface CBTWorksheetEntry {
   actionTaken: string;
 }
 
+export type LifelineCategory =
+  | '24/7 Crisis'
+  | 'Alcohol'
+  | 'Drugs'
+  | 'Gambling'
+  | 'Smoking'
+  | 'Industry & Trades'
+  | 'Family'
+  | 'Matchday 0.0%';
+
 export interface LifelineItem {
   id: string;
   name: string;
-  category:
-    | '24/7 UK Crisis & Emotional Support'
-    | 'Industry-Specific Charities'
-    | 'Sobriety & Recovery Communities'
-    | 'Sober Matchday & 0.0% Finder';
+  category: LifelineCategory;
   phone?: string;
   textNumber?: string;
+  whatsapp?: string;
   website: string;
   hours: string;
   description: string;
@@ -124,6 +171,7 @@ export type LockerChannel =
   | '#day-1-starters'
   | '#kitchen-and-shift-workers'
   | '#matchday-sober'
+  | '#drugs-smoking-gambling'
   | '#business-owners';
 
 export interface CommunityPost {
@@ -136,12 +184,15 @@ export interface CommunityPost {
   content: string;
   ironCount: number;
   userSentIron?: boolean;
+  isAnonymous?: boolean;
+  flaggedReason?: string;
   replies: {
     id: string;
     author: string;
     roleBadge: string;
     content: string;
     timestamp: string;
+    flaggedReason?: string;
   }[];
 }
 

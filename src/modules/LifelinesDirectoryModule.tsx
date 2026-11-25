@@ -9,16 +9,20 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { LIFELINES_DIRECTORY } from '../data/ironcladData';
-import { LifelineItem } from '../types/ironclad';
+import { LifelineCategory } from '../types/ironclad';
 
-type CategoryFilter = 'All' | LifelineItem['category'];
+type CategoryFilter = 'All' | LifelineCategory;
 
 const DIRECTORY_CATEGORIES: CategoryFilter[] = [
   'All',
-  '24/7 UK Crisis & Emotional Support',
-  'Industry-Specific Charities',
-  'Sobriety & Recovery Communities',
-  'Sober Matchday & 0.0% Finder',
+  '24/7 Crisis',
+  'Alcohol',
+  'Drugs',
+  'Gambling',
+  'Smoking',
+  'Industry & Trades',
+  'Family',
+  'Matchday 0.0%',
 ];
 
 const STADIUM_AND_PUB_SWAPS = [
@@ -67,7 +71,8 @@ export const LifelinesDirectoryModule: React.FC = () => {
     const matchesSearch =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.badge.toLowerCase().includes(searchQuery.toLowerCase());
+      item.badge.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
 
@@ -77,13 +82,13 @@ export const LifelinesDirectoryModule: React.FC = () => {
       <section className="iron-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
-            <HeartHandshake className="w-4 h-4" /> Free UK crisis, trade & recovery support
+            <HeartHandshake className="w-4 h-4" /> Free UK crisis, addiction, trade &amp; family directory
           </span>
           <h1 className="font-display text-2xl font-bold text-[#121518] mt-0.5">
-            Lifelines & UK Directory
+            Lifelines &amp; UK Directory
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
-            One-tap free UK helplines, hospitality and construction charities, recovery communities, and matchday 0.0% guides.
+            One-tap free UK helplines for alcohol, drugs, gambling, smoking, trades, family support, and matchday 0.0% swaps.
           </p>
         </div>
 
@@ -97,7 +102,7 @@ export const LifelinesDirectoryModule: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter lifelines (e.g., chefs, trades, CBT)..."
+            placeholder="Filter (e.g., Frank, GamCare, chefs, NHS)..."
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs text-[#121518]"
           />
         </div>
@@ -113,7 +118,7 @@ export const LifelinesDirectoryModule: React.FC = () => {
               type="button"
               onClick={() => setSelectedCategory(cat)}
               aria-pressed={active}
-              className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition border cursor-pointer ${
+              className={`px-3 py-2 rounded-lg text-xs font-semibold transition border cursor-pointer ${
                 active
                   ? 'bg-[#7A263A] text-white border-[#7A263A]'
                   : 'bg-white text-[#334155] border-[#CBD5E1] hover:bg-[#F8FAFC]'
@@ -128,8 +133,7 @@ export const LifelinesDirectoryModule: React.FC = () => {
       {/* Directory Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredLifelines.map((item) => {
-          const isCrisis =
-            item.category === '24/7 UK Crisis & Emotional Support';
+          const isCrisis = item.category === '24/7 Crisis';
           return (
             <article
               key={item.id}
@@ -160,10 +164,10 @@ export const LifelinesDirectoryModule: React.FC = () => {
               </div>
 
               <div className="pt-2 space-y-2">
-                {item.textNumber && (
+                {(item.textNumber || item.whatsapp) && (
                   <div className="px-3 py-2 rounded-lg bg-[#F0F9FF] border border-[#BAE6FD] text-xs font-medium text-[#0284C7] flex items-center gap-2">
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    {item.textNumber}
+                    <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{item.textNumber || item.whatsapp}</span>
                   </div>
                 )}
 
@@ -181,7 +185,7 @@ export const LifelinesDirectoryModule: React.FC = () => {
                     href={item.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="iron-btn-secondary py-2.5 px-3 text-xs flex items-center justify-center gap-1.5"
+                    className="iron-btn-ghost py-2.5 px-3 text-xs flex items-center justify-center gap-1.5"
                   >
                     <span>Website</span>
                     <ExternalLink className="w-3.5 h-3.5 text-[#0284C7]" />
@@ -198,10 +202,10 @@ export const LifelinesDirectoryModule: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <span className="text-xs font-semibold text-[#7A263A] flex items-center gap-1.5">
-              <Beer className="w-4 h-4" /> UK stadium concourses & pub tap finder
+              <Beer className="w-4 h-4" /> UK stadium concourses &amp; pub tap finder
             </span>
             <h2 className="font-display text-xl font-bold text-[#121518] mt-0.5">
-              Sober matchday & top UK 0.0% swaps
+              Sober matchday &amp; top UK 0.0% swaps
             </h2>
           </div>
           <span className="text-xs font-medium text-[#334155]">
@@ -235,17 +239,17 @@ export const LifelinesDirectoryModule: React.FC = () => {
         </div>
 
         <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-3.5 flex items-center gap-3 text-xs text-[#121518]">
-          <ShieldAlert className="w-5 h-5 text-[#DC2626] flex-shrink-0" />
+          <ShieldAlert className="w-5 h-5 text-[#E63946] flex-shrink-0" />
           <span>
-            <strong className="text-[#B91C1C]">Medical safety notice:</strong> If you are in immediate physical danger or experiencing severe alcohol withdrawal symptoms (shaking, confusion, seizures, chest pain), call{' '}
+            <strong className="text-[#B91C1C]">UK medical safety notice:</strong> Never stop heavy daily alcohol or substance use suddenly without medical advice — contact{' '}
+            <a href="tel:111" className="text-[#0284C7] font-bold underline">
+              NHS 111
+            </a>
+            , your GP, or{' '}
             <a href="tel:999" className="text-[#B91C1C] font-bold underline">
               999
             </a>{' '}
-            or{' '}
-            <a href="tel:111" className="text-[#0284C7] font-bold underline">
-              NHS 111
-            </a>{' '}
-            immediately.
+            in an emergency.
           </span>
         </div>
       </section>

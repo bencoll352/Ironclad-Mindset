@@ -6,8 +6,8 @@ interface IroncladLogoProps {
 
 export const IroncladLogo: React.FC<IroncladLogoProps> = ({ compact = false }) => {
   return (
-    <div className="flex items-center gap-3 select-none">
-      <div className="relative flex-shrink-0 w-10 h-10 rounded-full border border-[#CBD5E1] bg-white flex items-center justify-center overflow-hidden">
+    <div className="flex items-center gap-2 sm:gap-3 select-none min-w-0">
+      <div className="relative flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#CBD5E1] bg-white flex items-center justify-center overflow-hidden">
         <svg
           viewBox="0 0 120 120"
           className="w-full h-full"
@@ -81,10 +81,10 @@ export const IroncladLogo: React.FC<IroncladLogoProps> = ({ compact = false }) =
       {!compact && (
         <div className="flex flex-col leading-tight">
           <div className="flex items-center gap-1.5">
-            <span className="font-display text-lg sm:text-xl font-bold tracking-wide text-[#7A263A]">
+            <span className="font-display text-base sm:text-xl font-bold tracking-wide text-[#7A263A]">
               Ironclad
             </span>
-            <span className="font-display text-lg sm:text-xl font-bold tracking-wide text-[#121518]">
+            <span className="font-display text-base sm:text-xl font-bold tracking-wide text-[#121518]">
               Mindset
             </span>
           </div>

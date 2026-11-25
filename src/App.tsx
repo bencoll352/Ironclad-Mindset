@@ -1,15 +1,21 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   BookOpen,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
+  Dumbbell,
   Flame,
   Hammer,
   HeartHandshake,
+  Moon,
+  Search,
   Settings,
   ShieldAlert,
+  Sun,
   Users,
   Utensils,
+  X,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { IntegrationsModal } from './components/IntegrationsModal';
@@ -31,11 +37,13 @@ import {
   restoreDatedCheckInsBackup,
   saveDatedCheckIn,
 } from './db/checkinsDb';
+import { ForWorkplacesModule } from './modules/ForWorkplacesModule';
 import { FuelTheMindModule } from './modules/FuelTheMindModule';
 import { LifelinesDirectoryModule } from './modules/LifelinesDirectoryModule';
-import { LockerRoomAndB2BModule } from './modules/LockerRoomAndB2BModule';
+import { MoveTheIronModule } from './modules/MoveTheIronModule';
 import { TheCornermanModule } from './modules/TheCornermanModule';
 import { TheForgeModule } from './modules/TheForgeModule';
+import { TheLockerRoomModule } from './modules/TheLockerRoomModule';
 import { ThePlaybooksModule } from './modules/ThePlaybooksModule';
 import {
   requestCornermanCompanion,
@@ -55,9 +63,14 @@ import {
   saveEarnedMilestones,
 } from './services/milestones';
 import {
+  SearchableItem,
+  searchIroncladResources,
+} from './services/searchIndex';
+import {
   B2BLeadSubmission,
   CBTWorksheetEntry,
   ChatMessage,
+  CommitmentTrack,
   CommunityPost,
   IntegrationConfig,
   LockerChannel,
@@ -65,6 +78,7 @@ import {
   NonNegotiableTask,
   Playbook,
   Recipe,
+  SavingsGoal,
   ShoppingIngredient,
   WebhookLogItem,
 } from './types/ironclad';
@@ -75,15 +89,16 @@ interface NavItem {
   shortLabel: string;
   subtitle: string;
   icon: React.FC<{ className?: string }>;
+  dividerBefore?: boolean;
 }
 
-// Ordered so Forge, Pippa, and Lifelines are immediately reachable on mobile
+// 8 Clear Modules — separating peer recovery from B2B corporate portal
 const NAV_ITEMS: NavItem[] = [
   {
     id: 'forge',
     label: 'The Forge',
     shortLabel: 'Forge',
-    subtitle: 'Daily dashboard & streak',
+    subtitle: 'Analytics & multi-track goals',
     icon: Hammer,
   },
   {
@@ -94,11 +109,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: PippaIcon,
   },
   {
-    id: 'lifelines',
-    label: 'Lifelines',
-    shortLabel: 'Lifelines',
-    subtitle: 'Free UK support & 0.0%',
-    icon: HeartHandshake,
+    id: 'move',
+    label: 'Move the Iron',
+    shortLabel: 'Move',
+    subtitle: '20m shift cortisol reset',
+    icon: Dumbbell,
   },
   {
     id: 'fuel',
@@ -111,17 +126,76 @@ const NAV_ITEMS: NavItem[] = [
     id: 'playbooks',
     label: 'Playbooks',
     shortLabel: 'Playbooks',
-    subtitle: '5 guides & HALT tool',
+    subtitle: '6 guides, HALT & PDFs',
     icon: BookOpen,
   },
   {
+    id: 'lifelines',
+    label: 'Lifelines',
+    shortLabel: 'Lifelines',
+    subtitle: 'Free UK support directory',
+    icon: HeartHandshake,
+  },
+  {
     id: 'locker',
-    label: 'Locker Room & B2B',
-    shortLabel: 'Community',
-    subtitle: 'Peers & workplace ROI',
+    label: 'The Locker Room',
+    shortLabel: 'Locker',
+    subtitle: 'Private peer community',
     icon: Users,
   },
+  {
+    id: 'workplaces',
+    label: 'For Workplaces (B2B)',
+    shortLabel: 'Workplaces',
+    subtitle: 'ROI calculator & charter',
+    icon: Briefcase,
+    dividerBefore: true,
+  },
 ];
+
+function createDefaultCommitments(initialStreak: number): CommitmentTrack[] {
+  return [
+    {
+      id: 'alcohol',
+      enabled: true,
+      label: 'Alcohol-Free',
+      streakDays: initialStreak,
+      weeklySpendGBP: 65,
+      dailyUnitsBaseline: 4,
+    },
+    {
+      id: 'drugs',
+      enabled: false,
+      label: 'Days Clean',
+      streakDays: 0,
+      weeklySpendGBP: 50,
+    },
+    {
+      id: 'smoking',
+      enabled: false,
+      label: 'Smoke / Vape-Free',
+      streakDays: 0,
+      weeklySpendGBP: 45,
+      dailyUnitsBaseline: 15,
+    },
+    {
+      id: 'gambling',
+      enabled: false,
+      label: 'Bet-Free',
+      streakDays: 0,
+      weeklySpendGBP: 40,
+      paydayCheckInEnabled: true,
+    },
+    {
+      id: 'custom',
+      enabled: false,
+      label: 'Custom Habit',
+      customTitle: 'Late-night energy drinks',
+      streakDays: 0,
+      weeklySpendGBP: 20,
+    },
+  ];
+}
 
 function createInitialCornermanMessages(): ChatMessage[] {
   return [
@@ -129,7 +203,7 @@ function createInitialCornermanMessages(): ChatMessage[] {
       id: 'welcome-msg',
       sender: 'cornerman',
       timestamp: 'Ready 24/7',
-      text: "Alright mate, I'm Pippa—your 24/7 UK voice and recovery coach. Here for after-shift cravings, quick £40-budget meals, or talking through a rough day.\n\nTap Start Live Voice Call to speak with me hands-free, or tell me what's going on right now—how's your day looking?",
+      text: "Alright mate, I'm Pippa—your 24/7 UK voice and recovery coach. Here for alcohol, smoking/vaping, gambling, or substance urges, quick £40-budget meals, or talking through a rough shift.\n\nTap Start Live Voice Call to speak with me hands-free, or tell me what's going on right now—how's your day looking?",
       citations: validateSourceIds([
         'playbook-1#section-0',
         'playbook-2#section-0',
@@ -146,6 +220,60 @@ export function App() {
   const [isSOSOpen, setIsSOSOpen] = useState<boolean>(false);
   const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
 
+  // Night Shift / 3 AM Dark Mode (Auto 21:00–06:00 local time + manual override)
+  const [nightShift, setNightShift] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ironclad_mindset_v1_theme_override');
+      if (saved === 'night') return true;
+      if (saved === 'day') return false;
+    } catch {
+      // Ignore
+    }
+    const hour = new Date().getHours();
+    return hour >= 21 || hour < 6;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('night-shift', nightShift);
+  }, [nightShift]);
+
+  const toggleNightShift = () => {
+    setNightShift((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(
+          'ironclad_mindset_v1_theme_override',
+          next ? 'night' : 'day'
+        );
+      } catch {
+        // Ignore
+      }
+      return next;
+    });
+  };
+
+  // Global Orama Quick Search
+  const [globalSearchQuery, setGlobalSearchQuery] = useState<string>('');
+  const [globalSearchResults, setGlobalSearchResults] = useState<
+    SearchableItem[]
+  >([]);
+  const [isGlobalSearchFocused, setIsGlobalSearchFocused] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!globalSearchQuery.trim()) {
+      setGlobalSearchResults([]);
+      return;
+    }
+    searchIroncladResources(globalSearchQuery).then((res) => {
+      if (!cancelled) setGlobalSearchResults(res.slice(0, 6));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [globalSearchQuery]);
+
   // Load & migrate streak + 12 Iron Milestones once (persisted separately so setbacks preserve earned badges)
   const [initialMilestoneState] = useState(() => loadAndMigrateMilestones());
   const [streakDays, setStreakDaysState] = useState<number>(
@@ -160,6 +288,18 @@ export function App() {
   );
   const [weeklySpendGBP, setWeeklySpendGBP] = useState<number>(() =>
     loadPersisted('weekly_spend_gbp', 65)
+  );
+  const [commitments, setCommitments] = useState<CommitmentTrack[]>(() =>
+    loadPersisted(
+      'commitments',
+      createDefaultCommitments(initialMilestoneState.streakDays)
+    )
+  );
+  const [savingsGoal, setSavingsGoal] = useState<SavingsGoal>(() =>
+    loadPersisted('savings_goal', {
+      title: 'New trainers / weekend away',
+      targetGBP: 180,
+    })
   );
   const [tasks, setTasks] = useState<NonNegotiableTask[]>(() =>
     loadPersisted('non_negotiables', DEFAULT_NON_NEGOTIABLES)
@@ -266,7 +406,14 @@ export function App() {
     return res;
   };
 
-  const moneySavedGBP = ((streakDays / 7) * weeklySpendGBP).toFixed(0);
+  const moneySavedGBP = Math.round(
+    commitments.reduce((sum, track) => {
+      if (!track.enabled) return sum;
+      const d = track.id === 'alcohol' ? streakDays : track.streakDays;
+      const w = track.id === 'alcohol' ? weeklySpendGBP : track.weeklySpendGBP;
+      return sum + (d / 7) * w;
+    }, 0)
+  ).toString();
 
   const handleSaveConfig = (next: IntegrationConfig) => {
     setConfig(next);
@@ -278,10 +425,57 @@ export function App() {
     savePersisted('weekly_spend_gbp', spend);
   };
 
+  const handleUpdateCommitments = (next: CommitmentTrack[]) => {
+    setCommitments(next);
+    savePersisted('commitments', next);
+  };
+
+  const handleUpdateSavingsGoal = (next: SavingsGoal) => {
+    setSavingsGoal(next);
+    savePersisted('savings_goal', next);
+  };
+
+  const handleSelectSearchResult = (item: SearchableItem) => {
+    setIsGlobalSearchFocused(false);
+    setGlobalSearchQuery('');
+    if (item.moduleId === 'playbooks' && item.targetId) {
+      setInitialOpenPlaybookId(item.targetId);
+      setInitialOpenSectionIndex(0);
+    } else if (item.moduleId === 'fuel' && item.targetId) {
+      setHighlightedRecipeId(item.targetId);
+    }
+    setActiveModule(item.moduleId);
+  };
+
   const handleToggleTask = (id: string) => {
     const next = tasks.map((t) =>
       t.id === id ? { ...t, completed: !t.completed } : t
     );
+    setTasks(next);
+    syncToSupabaseOrLocal('ironclad_tasks', 'non_negotiables', next, config);
+  };
+
+  const handleCompleteMoveSession = (sessionLabel: string) => {
+    const hasMovementTask = tasks.some((t) => t.id === 'nn-2');
+    const next = hasMovementTask
+      ? tasks.map((t) =>
+          t.id === 'nn-2'
+            ? {
+                ...t,
+                completed: true,
+                label: `Moved the Iron: ${sessionLabel}`,
+              }
+            : t
+        )
+      : [
+          ...tasks,
+          {
+            id: `nn-${Date.now()}`,
+            label: `Moved the Iron: ${sessionLabel}`,
+            completed: true,
+            category: 'movement' as const,
+          },
+        ];
     setTasks(next);
     syncToSupabaseOrLocal('ironclad_tasks', 'non_negotiables', next, config);
   };
@@ -349,7 +543,7 @@ export function App() {
     setMessages((prev) => [...prev, botMsg]);
   };
 
-  // Shopping List handlers
+  // Shopping List handlers (supports 1x, 2x, 4x batch scaling)
   const handleToggleShopItem = (id: string) => {
     const next = shoppingList.map((item) =>
       item.id === id ? { ...item, checked: !item.checked } : item
@@ -358,16 +552,17 @@ export function App() {
     savePersisted('shopping_list', next);
   };
 
-  const handleAddRecipeToShop = (recipe: Recipe) => {
+  const handleAddRecipeToShop = (recipe: Recipe, batchMultiplier = 1) => {
+    const mult = Math.max(1, batchMultiplier);
     const newItems: ShoppingIngredient[] = recipe.ingredients.map(
       (ing, idx) => ({
         id: `shop-${Date.now()}-${idx}`,
         name: ing.name,
         aisle: ing.aisle,
-        estimatedPriceGBP: ing.estimatedPriceGBP,
-        quantity: ing.quantity,
+        estimatedPriceGBP: Number((ing.estimatedPriceGBP * mult).toFixed(2)),
+        quantity: mult > 1 ? `${mult}x ${ing.quantity}` : ing.quantity,
         checked: false,
-        fromRecipe: recipe.title,
+        fromRecipe: mult > 1 ? `${recipe.title} (${mult}x batch)` : recipe.title,
       })
     );
     const next = [...shoppingList, ...newItems];
@@ -404,18 +599,20 @@ export function App() {
     channel: Exclude<LockerChannel, 'all'>,
     author: string,
     roleBadge: string,
-    content: string
+    content: string,
+    isAnonymous = false
   ) => {
     const newPost: CommunityPost = {
       id: `post-${Date.now()}`,
-      author,
-      roleBadge,
+      author: isAnonymous ? 'Locker Member (Anon)' : author,
+      roleBadge: isAnonymous ? 'Anonymous Member' : roleBadge,
       streakDays,
       channel,
       timestamp: 'Just now',
       content,
       ironCount: 1,
       userSentIron: true,
+      isAnonymous,
       replies: [],
     };
     const next = [newPost, ...communityPosts];
@@ -523,13 +720,65 @@ export function App() {
           <button
             type="button"
             onClick={() => setActiveModule('forge')}
-            className="text-left cursor-pointer"
+            className="text-left cursor-pointer min-w-0 shrink"
           >
             <IroncladLogo />
           </button>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Live Sobriety Pill */}
+          {/* Global Orama Offline-First Quick Search */}
+          <div className="relative hidden md:block flex-1 max-w-xs lg:max-w-sm">
+            <div className="relative flex items-center">
+              <Search className="w-3.5 h-3.5 text-[#475569] absolute left-3 pointer-events-none" />
+              <input
+                id="global-orama-search"
+                type="search"
+                value={globalSearchQuery}
+                onFocus={() => setIsGlobalSearchFocused(true)}
+                onBlur={() => setTimeout(() => setIsGlobalSearchFocused(false), 180)}
+                onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                placeholder="Search playbooks, recipes, lifelines..."
+                className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-[#F8FAFC] border border-[#CBD5E1] text-xs text-[#121518]"
+              />
+              {globalSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setGlobalSearchQuery('')}
+                  aria-label="Clear global search"
+                  className="absolute right-2 text-[#475569] hover:text-[#121518] cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {isGlobalSearchFocused && globalSearchResults.length > 0 && (
+              <div className="absolute left-0 right-0 mt-1.5 bg-white border border-[#CBD5E1] rounded-xl shadow-xl z-50 max-h-72 overflow-y-auto iron-scroll p-1.5 space-y-1">
+                {globalSearchResults.map((res) => (
+                  <button
+                    key={`${res.kind}-${res.id}`}
+                    type="button"
+                    onMouseDown={() => handleSelectSearchResult(res)}
+                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[#F8FAFC] transition cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-[#121518] truncate">
+                        {res.title}
+                      </span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FDF2F4] text-[#7A263A] shrink-0">
+                        {res.kind}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#475569] truncate">
+                      {res.subtitle}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+            {/* Live Combined Money Protected Pill */}
             <button
               type="button"
               onClick={() => setActiveModule('forge')}
@@ -542,21 +791,38 @@ export function App() {
                   Day {streakDays}
                 </div>
                 <div className="font-mono-metric text-[10px] text-[#475569]">
-                  £{moneySavedGBP} saved
+                  £{moneySavedGBP} protected
                 </div>
               </div>
             </button>
 
-            {/* Connections & Settings Button */}
+            {/* Night Shift / 3 AM Dark Mode Toggle */}
+            <button
+              id="theme-toggle-btn"
+              type="button"
+              onClick={toggleNightShift}
+              aria-label={nightShift ? 'Switch to Day Mode' : 'Switch to Night Shift Dark Mode'}
+              aria-pressed={nightShift}
+              title={nightShift ? 'Night Shift Dark Mode active (click for Day Mode)' : 'Day Mode (click for Night Shift Dark Mode)'}
+              className="iron-btn-ghost p-1.5 sm:p-2 text-xs cursor-pointer"
+            >
+              {nightShift ? (
+                <Sun className="w-4 h-4 text-[#1BB1E7]" />
+              ) : (
+                <Moon className="w-4 h-4 text-[#334155]" />
+              )}
+            </button>
+
+            {/* Subtle Settings Cog (Tucked-away developer & webhook config) */}
             <button
               id="open-integrations-modal-btn"
               type="button"
               onClick={() => setIsIntegrationsOpen(true)}
-              className="iron-btn-secondary flex items-center gap-1.5 px-3 py-2 text-xs cursor-pointer"
-              title="Connections and webhook settings"
+              aria-label="Connections and developer settings"
+              title="Connections, API & webhook settings"
+              className="iron-btn-ghost p-1.5 sm:p-2 text-xs cursor-pointer"
             >
-              <Settings className="w-4 h-4 text-[#7A263A]" />
-              <span className="hidden md:inline">Connections</span>
+              <Settings className="w-4 h-4 text-[#475569]" />
             </button>
 
             {/* Persistent One-Tap Craving Reset Button (Strongest Red Treatment) */}
@@ -564,7 +830,7 @@ export function App() {
               id="global-sos-red-btn"
               type="button"
               onClick={() => setIsSOSOpen(true)}
-              className="iron-btn-urgent px-3.5 sm:px-4 py-2 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
+              className="iron-btn-urgent px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 cursor-pointer"
             >
               <ShieldAlert className="w-4 h-4" />
               <span>Craving Reset</span>
@@ -608,38 +874,45 @@ export function App() {
               const Icon = item.icon;
               const active = activeModule === item.id;
               return (
-                <button
-                  key={item.id}
-                  id={`nav-desktop-${item.id}`}
-                  type="button"
-                  onClick={() => setActiveModule(item.id)}
-                  aria-current={active ? 'page' : undefined}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition border text-left cursor-pointer ${
-                    active
-                      ? 'bg-[#7A263A] text-white border-[#7A263A]'
-                      : 'bg-transparent text-[#334155] border-transparent hover:bg-white hover:border-[#E2E8F0] hover:text-[#121518]'
-                  }`}
-                >
-                  <Icon
-                    className={`w-5 h-5 flex-shrink-0 ${
-                      active ? 'text-white' : 'text-[#7A263A]'
-                    }`}
-                  />
-                  {!sidebarCollapsed && (
-                    <div className="overflow-hidden">
-                      <div className="text-sm font-semibold truncate">
-                        {item.label}
-                      </div>
-                      <div
-                        className={`text-[11px] truncate ${
-                          active ? 'text-white/85' : 'text-[#475569]'
-                        }`}
-                      >
-                        {item.subtitle}
-                      </div>
-                    </div>
+                <React.Fragment key={item.id}>
+                  {item.dividerBefore && (
+                    <div
+                      role="separator"
+                      className="my-2 border-t border-[#E2E8F0]"
+                    />
                   )}
-                </button>
+                  <button
+                    id={`nav-desktop-${item.id}`}
+                    type="button"
+                    onClick={() => setActiveModule(item.id)}
+                    aria-current={active ? 'page' : undefined}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition border text-left cursor-pointer ${
+                      active
+                        ? 'bg-[#7A263A] text-white border-[#7A263A]'
+                        : 'bg-transparent text-[#334155] border-transparent hover:bg-white hover:border-[#E2E8F0] hover:text-[#121518]'
+                    }`}
+                  >
+                    <Icon
+                      className={`w-5 h-5 flex-shrink-0 ${
+                        active ? 'text-white' : 'text-[#7A263A]'
+                      }`}
+                    />
+                    {!sidebarCollapsed && (
+                      <div className="overflow-hidden">
+                        <div className="text-sm font-semibold truncate">
+                          {item.label}
+                        </div>
+                        <div
+                          className={`text-[11px] truncate ${
+                            active ? 'text-white/85' : 'text-[#475569]'
+                          }`}
+                        >
+                          {item.subtitle}
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                </React.Fragment>
               );
             })}
           </div>
@@ -655,7 +928,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setActiveModule('lifelines')}
-                className="iron-btn-secondary w-full py-1.5 px-2.5 text-xs cursor-pointer"
+                className="iron-btn-ghost w-full py-1.5 px-2.5 text-xs cursor-pointer"
               >
                 Open UK Lifelines
               </button>
@@ -682,6 +955,11 @@ export function App() {
                   onResetStreakKeepBadges={handleResetStreakKeepBadges}
                   weeklySpendGBP={weeklySpendGBP}
                   onChangeWeeklySpend={handleChangeWeeklySpend}
+                  commitments={commitments}
+                  onUpdateCommitments={handleUpdateCommitments}
+                  savingsGoal={savingsGoal}
+                  onUpdateSavingsGoal={handleUpdateSavingsGoal}
+                  onOpenMoveTheIron={() => setActiveModule('move')}
                   tasks={tasks}
                   onToggleTask={handleToggleTask}
                   onAddCustomTask={handleAddCustomTask}
@@ -722,6 +1000,12 @@ export function App() {
                 />
               )}
 
+              {activeModule === 'move' && (
+                <MoveTheIronModule
+                  onCompleteSession={handleCompleteMoveSession}
+                />
+              )}
+
               {activeModule === 'fuel' && (
                 <FuelTheMindModule
                   shoppingList={shoppingList}
@@ -747,14 +1031,25 @@ export function App() {
               {activeModule === 'lifelines' && <LifelinesDirectoryModule />}
 
               {activeModule === 'locker' && (
-                <LockerRoomAndB2BModule
+                <TheLockerRoomModule
                   streakDays={streakDays}
                   posts={communityPosts}
                   onCreatePost={handleCreatePost}
                   onSendIron={handleSendIron}
                   onAddReply={handleAddReply}
+                />
+              )}
+
+              {activeModule === 'workplaces' && (
+                <ForWorkplacesModule
                   b2bLeads={b2bLeads}
                   onSubmitB2BLead={handleSubmitB2BLead}
+                  onTriggerDocuSealWebhook={handleTriggerDocuSealWebhook}
+                  onOpenPlaybook5={() => {
+                    setInitialOpenPlaybookId('playbook-5');
+                    setInitialOpenSectionIndex(0);
+                    setActiveModule('playbooks');
+                  }}
                 />
               )}
             </motion.div>
@@ -767,7 +1062,7 @@ export function App() {
       {/* =================================================================== */}
       <nav
         aria-label="Mobile navigation"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xs border-t border-[#E2E8F0] px-2 py-1.5 grid grid-cols-6 gap-1 no-print"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xs border-t border-[#E2E8F0] px-2 py-1.5 flex overflow-x-auto iron-scroll gap-1 no-print"
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -779,7 +1074,7 @@ export function App() {
               type="button"
               onClick={() => setActiveModule(item.id)}
               aria-current={active ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition cursor-pointer ${
+              className={`min-w-[66px] flex-1 shrink-0 flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition cursor-pointer ${
                 active
                   ? 'bg-[#7A263A] text-white'
                   : 'text-[#334155] hover:bg-[#F8FAFC] hover:text-[#121518]'

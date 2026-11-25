@@ -135,6 +135,7 @@ export const RECIPES: Recipe[] = [
     title: 'The Ironclad Steak, Cavolo Nero & Garlic Skillet',
     subtitle:
       'High-heat 12-minute shift recovery skillet with protein, iron, and leafy greens.',
+    imageUrl: '/Ironclad-Mindset/recipes/steak-skillet.svg',
     prepTimeMins: 12,
     costPerServingGBP: 3.45,
     categories: ['15-Min Shift Meals', 'Dopamine Boosters'],
@@ -194,6 +195,7 @@ export const RECIPES: Recipe[] = [
     title: 'Smashed Mackerel, Chickpea & Lemon Tahini Power Bowl',
     subtitle:
       'Zero-cook or flash-warmed 10-minute Mediterranean meal built from store-cupboard tins.',
+    imageUrl: '/Ironclad-Mindset/recipes/mackerel-bowl.svg',
     prepTimeMins: 10,
     costPerServingGBP: 1.95,
     categories: ['15-Min Shift Meals', 'Gut Repair', 'Dopamine Boosters'],
@@ -245,6 +247,7 @@ export const RECIPES: Recipe[] = [
     title: 'Overnight Spiced Cacao, Berry & Walnut Recovery Oats',
     subtitle:
       '5-minute evening prep so you wake up to slow-release energy instead of a mid-morning crash.',
+    imageUrl: '/Ironclad-Mindset/recipes/recovery-oats.svg',
     prepTimeMins: 5,
     costPerServingGBP: 1.35,
     categories: ['Gut Repair', 'Dopamine Boosters'],
@@ -296,6 +299,7 @@ export const RECIPES: Recipe[] = [
     title: 'The "Witching Hour" Fiery Ginger, Lime, ACV & Sea Salt Spritz (0.0%)',
     subtitle:
       'Built for 5:00pm after a tough shift—replicates the sharp bite and ritual of an evening drink.',
+    imageUrl: '/Ironclad-Mindset/recipes/witching-hour-spritz.svg',
     prepTimeMins: 3,
     costPerServingGBP: 0.65,
     categories: ['5 PM Alcohol-Free Swaps', 'Gut Repair'],
@@ -347,6 +351,7 @@ export const RECIPES: Recipe[] = [
     title: 'Chef’s One-Pan Harissa Chicken, Sweet Potato & Broccoli Traybake',
     subtitle:
       'Sunday meal-prep staple: four portions of complex carbs and protein with one roasting tin to wash.',
+    imageUrl: '/Ironclad-Mindset/recipes/harissa-traybake.svg',
     prepTimeMins: 15,
     costPerServingGBP: 2.15,
     categories: ['15-Min Shift Meals', 'Dopamine Boosters', 'Gut Repair'],
@@ -736,7 +741,86 @@ export const PLAYBOOKS: Playbook[] = [
           'Any team member experiencing burnout, mental health distress, or alcohol dependency who voluntarily asks for support will be signposted to confidential occupational support and UK lifelines.',
         ],
         actionPoints: [
-          'Deploy this policy across your team via the B2B workplace portal and trigger a DocuSeal sign-off pack.',
+          'Deploy this policy across your team via the For Workplaces (B2B) portal and trigger a DocuSeal sign-off pack.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'playbook-6',
+    number: 6,
+    title: 'Playbook 6: The Ironclad Mind Management Playbook',
+    subtitle:
+      'How your three brain systems work under pressure—plus the 60-second Pause, Safe Release Steps, and Lock the Accounts Gambling Friction Kit.',
+    readTime: '11 min read • Mind & Friction Kit',
+    category: 'Mind Management',
+    hasGamblingFrictionKit: true,
+    summary:
+      'Lasting recovery across alcohol, drugs, smoking, and gambling is not about willpower battles—it is about understanding how fast habit loops fire, nurturing the stressed body first, and building practical friction around high-risk triggers.',
+    keyTakeaways: [
+      'Three Brain Systems: 20x Autopilot Habits, 5x Emotional Impulse, and 1x Rational Anchor—give the 1x anchor a 60-second pause to come online.',
+      'Nurture First, Then Manage: Cold water, protein, and breathing calm the threat system before you try to reason with an urge.',
+      'Lock the Accounts: Combine UK bank card gambling blocks, GAMSTOP, and Gamban for rock-solid payday & matchday friction.',
+    ],
+    sections: [
+      {
+        heading: 'Section 1: The Three Brain Systems (20x Habits / 5x Impulse / 1x Rational)',
+        badge: 'MIND FRAMEWORK',
+        diagram: {
+          src: '/Ironclad-Mindset/diagrams/three-brain-systems.svg',
+          alt: 'Diagram comparing 20x Autopilot Habit System, 5x Emotional Impulse Engine, and 1x Rational Anchor Brain',
+          caption:
+            'Why willpower loses in the first 3 seconds—and why buying a 60-second pause lets your rational brain take the wheel.',
+        },
+        body: [
+          'Under post-shift fatigue, payday excitement, or social stress, three distinct systems compete in your head. Your Autopilot Habit System runs roughly 20 times faster than conscious thought—it remembers every cue (5pm clock-off, pub sign, betting app alert).',
+          'Your Emotional Impulse Engine fires 5 times faster than logic whenever blood sugar drops or cortisol spikes. Your Rational Anchor Brain is calm, smart, and aligned with your 7am goals—but it needs 60 seconds of quiet space to catch up.',
+        ],
+      },
+      {
+        heading: 'Section 2: The Two Pathways & The 60-Second Pause',
+        badge: 'PATHWAY SHIFT',
+        diagram: {
+          src: '/Ironclad-Mindset/diagrams/two-pathways-pause.svg',
+          alt: 'Flowchart showing Pathway A Impulse Saboteur versus Pathway B Ironclad Anchor after a 60-second pause',
+          caption:
+            'Every craving forks at the exact same moment: 0 seconds leads to autopilot; 60 seconds opens Pathway B.',
+        },
+        body: [
+          'When a trigger lands, Pathway A (the old saboteur) promises instant relief within minutes—followed by broken sleep, empty pockets, or morning regret.',
+          'Inserting a deliberate 60-second pause—four slow 4-4-4-4 box breaths or stepping 50 paces away from the shop or pub door—interrupts the loop and routes you onto Pathway B.',
+        ],
+      },
+      {
+        heading: 'Section 3: Nurture First, Then Manage & The 4 Safe Release Steps',
+        badge: '4 SAFE STEPS',
+        diagram: {
+          src: '/Ironclad-Mindset/diagrams/ironclad-journey.svg',
+          alt: 'Four step sequence: 1 Name It, 2 Nurture, 3 Release, 4 Anchor',
+          caption:
+            'Never argue with an exhausted nervous system. Nurture your body first, discharge the tension safely, then anchor the win.',
+        },
+        body: [
+          '1. Name It: Call out what is actually firing (Hungry, Angry, Lonely, Tired, Payday rush, or Shift Comedown).',
+          '2. Nurture First: Drink cold water, eat protein within 15 minutes, or run 60 seconds of breathing before making any decision.',
+          '3. Safe Release: Discharge the wired adrenaline using a 20-minute Move the Iron bodyweight circuit, brisk walk, or talking out loud with Pippa.',
+          '4. Reprogram & Anchor Stone: Every time you ride out a craving without caving, you carve a stronger anchor stone and retrain your 20x autopilot.',
+        ],
+      },
+      {
+        heading: 'Section 4: The 7-Step Ironclad Journey & Lock the Accounts Kit',
+        badge: 'FRICTION & ANCHOR',
+        body: [
+          '1. Spot your high-risk window (Friday 5pm, payday morning, 3pm kick-off, or late-night shift end).',
+          '2. Remove zero-friction access—especially one-tap betting apps, stored cards, or cash routes past off-licences.',
+          '3. Stack physical protection: bank card gambling blocks (48-hour cooling-off lock), GAMSTOP self-exclusion, and Gamban device blocking.',
+          '4. Keep real food and 0.0% swaps cold and ready at home.',
+          '5. Use Move the Iron for 10–20 minutes after hard shifts to burn off cortisol.',
+          '6. Check in daily inside The Forge so Pattern Radar spots your triggers early.',
+          '7. Lean on The Locker Room or Pippa before you ever feel isolated.',
+        ],
+        actionPoints: [
+          'Complete the 3-step Lock the Accounts Gambling Friction Kit below if betting or payday urges are on your radar.',
         ],
       },
     ],
@@ -766,10 +850,10 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-samaritans',
     name: 'Samaritans UK',
-    category: '24/7 UK Crisis & Emotional Support',
+    category: '24/7 Crisis',
     phone: '116123',
     website: 'https://www.samaritans.org',
-    hours: '24 hours a day, 365 days a year (Free from any phone)',
+    hours: '24 hours a day, 365 days a year (Free)',
     description:
       'Immediate, confidential, judgment-free listening support whenever things feel overwhelming at 3am or after a shift.',
     badge: 'Free 24/7 call',
@@ -777,7 +861,7 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-calm',
     name: 'CALM (Campaign Against Living Miserably)',
-    category: '24/7 UK Crisis & Emotional Support',
+    category: '24/7 Crisis',
     phone: '0800585858',
     website: 'https://www.thecalmzone.net',
     hours: '5:00pm – Midnight daily',
@@ -788,7 +872,7 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-shout',
     name: 'SHOUT 85258 Crisis Text Line',
-    category: '24/7 UK Crisis & Emotional Support',
+    category: '24/7 Crisis',
     phone: '85258',
     textNumber: 'Text SHOUT to 85258',
     website: 'https://giveusashout.org',
@@ -800,18 +884,18 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-nhs111',
     name: 'NHS 111 Mental Health & Urgent Medical Option',
-    category: '24/7 UK Crisis & Emotional Support',
+    category: '24/7 Crisis',
     phone: '111',
     website: 'https://111.nhs.uk',
     hours: '24/7 urgent NHS triage',
     description:
-      'Dial 111 for urgent NHS mental health support or medical advice if you are worried about physical alcohol withdrawal symptoms.',
+      'Dial 111 for urgent NHS mental health support or medical advice if you are worried about physical alcohol or substance withdrawal symptoms.',
     badge: 'NHS 111',
   },
   {
     id: 'life-mind',
     name: 'Mind Infoline UK',
-    category: '24/7 UK Crisis & Emotional Support',
+    category: '24/7 Crisis',
     phone: '03001233393',
     website: 'https://www.mind.org.uk',
     hours: 'Mon–Fri, 9:00am – 6:00pm',
@@ -822,7 +906,7 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-hospitality-action',
     name: 'Hospitality Action',
-    category: 'Industry-Specific Charities',
+    category: 'Industry & Trades',
     phone: '08088020282',
     website: 'https://www.hospitalityaction.org.uk',
     hours: '24/7 hospitality assistance line',
@@ -833,7 +917,7 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-lighthouse',
     name: 'The Lighthouse Construction Industry Charity',
-    category: 'Industry-Specific Charities',
+    category: 'Industry & Trades',
     phone: '03456051956',
     textNumber: 'Text HARDHAT to 85258',
     website: 'https://www.lighthouseclub.org',
@@ -845,18 +929,18 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-smart',
     name: 'SMART Recovery UK',
-    category: 'Sobriety & Recovery Communities',
+    category: 'Alcohol',
     phone: '01463729548',
     website: 'https://smartrecovery.org.uk',
     hours: 'Daily online & local UK meetings',
     description:
-      'Evidence-based, CBT-informed recovery meetings across the UK with practical tools for managing cravings.',
+      'Evidence-based, CBT-informed recovery meetings across the UK with practical tools for managing alcohol, drug, and behavioural cravings.',
     badge: 'CBT meetings',
   },
   {
     id: 'life-alcohol-change',
     name: 'Alcohol Change UK & Drinkline',
-    category: 'Sobriety & Recovery Communities',
+    category: 'Alcohol',
     phone: '03001231110',
     website: 'https://alcoholchange.org.uk',
     hours: 'Mon–Fri 9am–8pm, Weekends 11am–4pm',
@@ -867,7 +951,7 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-clubsoda',
     name: 'Club Soda (Mindful Drinking Movement)',
-    category: 'Sobriety & Recovery Communities',
+    category: 'Alcohol',
     website: 'https://joinclubsoda.com',
     hours: 'Online & London tasting room',
     description:
@@ -877,7 +961,7 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
   {
     id: 'life-aa',
     name: 'Alcoholics Anonymous Great Britain',
-    category: 'Sobriety & Recovery Communities',
+    category: 'Alcohol',
     phone: '08009177650',
     website: 'https://www.alcoholics-anonymous.org.uk',
     hours: '24/7 national helpline',
@@ -886,9 +970,99 @@ export const LIFELINES_DIRECTORY: LifelineItem[] = [
     badge: '24/7 fellowship',
   },
   {
+    id: 'life-frank',
+    name: 'Talk to Frank (Drugs Support UK)',
+    category: 'Drugs',
+    phone: '03001236600',
+    textNumber: 'Text 82111',
+    website: 'https://www.talktofrank.com',
+    hours: '24/7 free & confidential',
+    description:
+      'Honest, non-judgmental UK drugs information, confidential 24/7 helpline, text line (82111), and local treatment finder.',
+    badge: '24/7 Drugs',
+  },
+  {
+    id: 'life-ukna',
+    name: 'Narcotics Anonymous UK (UKNA)',
+    category: 'Drugs',
+    phone: '03009991212',
+    website: 'https://ukna.org',
+    hours: '10:00am – Midnight daily',
+    description:
+      'Peer-led daily in-person and online UK meetings supporting recovery from all drugs without stigma.',
+    badge: 'UKNA Meetings',
+  },
+  {
+    id: 'life-ca',
+    name: 'Cocaine Anonymous UK',
+    category: 'Drugs',
+    phone: '08006120225',
+    website: 'https://cocaineanonymous.org.uk',
+    hours: '10:00am – 10:00pm daily',
+    description:
+      'Free confidential helpline and UK meetings for anyone wanting to stop cocaine and other mind-altering substances.',
+    badge: 'CA UK Helpline',
+  },
+  {
+    id: 'life-gamcare',
+    name: 'National Gambling Helpline (GamCare)',
+    category: 'Gambling',
+    phone: '08088020133',
+    whatsapp: 'WhatsApp 020 3031 8881',
+    website: 'https://www.gamcare.org.uk',
+    hours: '24/7 free & confidential',
+    description:
+      '24/7 phone, WhatsApp, and live chat support for gambling urges, debt stress, and free Gamban device blocking licences.',
+    badge: '24/7 Gambling',
+  },
+  {
+    id: 'life-gamstop',
+    name: 'GAMSTOP (UK Online Self-Exclusion)',
+    category: 'Gambling',
+    phone: '08001386518',
+    website: 'https://www.gamstop.co.uk',
+    hours: '8:00am – Midnight daily',
+    description:
+      'Free, single-step exclusion blocking you from every GB-licensed online gambling website and app for 6 months, 1 year, or 5 years.',
+    badge: 'Self-exclusion',
+  },
+  {
+    id: 'life-sense-moses',
+    name: 'SENSE & MOSES (In-Person Gambling Exclusion)',
+    category: 'Gambling',
+    website: 'https://www.gamcare.org.uk/self-help/self-exclusion/',
+    hours: 'UK casinos & high-street betting shops',
+    description:
+      'Free UK multi-operator self-exclusion schemes covering land-based casinos (SENSE) and high-street betting shops (MOSES).',
+    badge: 'Shop & casino block',
+  },
+  {
+    id: 'life-nhs-smoking',
+    name: 'NHS Stop Smoking Services (Better Health)',
+    category: 'Smoking',
+    phone: '03001231044',
+    textNumber: 'Scotland 0800 84 84 84 · Wales 0800 085 2219',
+    website: 'https://www.nhs.uk/better-health/quit-smoking/',
+    hours: 'Mon–Fri 9am–8pm, Sat–Sun 11am–4pm',
+    description:
+      'Free NHS Smokefree advisers, local stop-smoking clinics, and evidence-based support to quit cigarettes or vapes for good.',
+    badge: 'Free NHS Quit',
+  },
+  {
+    id: 'life-alanon',
+    name: 'Al-Anon Family Groups UK',
+    category: 'Family',
+    phone: '08000086811',
+    website: 'https://al-anonuk.org.uk',
+    hours: '10:00am – 10:00pm daily',
+    description:
+      'Confidential helpline and support meetings for partners, parents, relatives, and friends affected by someone else’s drinking.',
+    badge: 'Family support',
+  },
+  {
     id: 'life-matchday-zones',
     name: 'UK Stadium Sober Matchday & 0.0% Tap Finder',
-    category: 'Sober Matchday & 0.0% Finder',
+    category: 'Matchday 0.0%',
     website: 'https://luckysaint.co/pages/find-lucky-saint',
     hours: 'Matchday Saturdays & midweek fixtures',
     description:
@@ -941,6 +1115,20 @@ export const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [
         timestamp: '3 hours ago',
       },
     ],
+  },
+  {
+    id: 'post-5',
+    author: 'Forge_Member_18',
+    roleBadge: 'Bet-Free & Smoke-Free • Leeds',
+    streakDays: 22,
+    channel: '#drugs-smoking-gambling',
+    timestamp: '3 hours ago',
+    content:
+      'Payday used to wipe half my wages before Saturday 3pm kick-off. Put the Monzo gambling block on (48hr lock), signed up to GAMSTOP, and switched to the 3-minute urge surfer whenever I reach for a vape. £340 protected so far—actually booked a weekend away with the kids.',
+    ironCount: 54,
+    userSentIron: false,
+    isAnonymous: true,
+    replies: [],
   },
   {
     id: 'post-3',

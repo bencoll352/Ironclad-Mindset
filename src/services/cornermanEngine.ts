@@ -9,6 +9,7 @@ export const ALLOWED_CORNERMAN_ACTIONS = [
   'OPEN_PLAYBOOK_3',
   'OPEN_PLAYBOOK_4',
   'OPEN_PLAYBOOK_5',
+  'OPEN_PLAYBOOK_6',
 ] as const;
 
 export type CornermanActionId = (typeof ALLOWED_CORNERMAN_ACTIONS)[number];
@@ -675,6 +676,81 @@ export function generateBuiltInCompanionResponse(
         reply,
         sourceIds: ['playbook-4#section-0'],
         action: 'OPEN_HALT_WORKSHEET',
+      },
+      providerStatus,
+      statusNotice
+    );
+  }
+
+  // 8b. Gambling / Payday / Betting Urge
+  if (
+    /\b(gambl|bet|betting|acca|accumulator|roulette|slots|casino|bookie|payday|3\s*pm kick|3pm kick|gamstop|gamban)\b/i.test(
+      latestLower
+    )
+  ) {
+    const reply = pickNonRepeating(
+      [
+        "Stop right there before you open a betting app, mate. That payday or kick-off rush promises a buzz, then steals your sleep and empties your bank balance. Move your phone across the room right now, run the Gambling Instant Friction tab in Craving Reset, and stick your bank card gambling block on—what's triggered the urge just now?",
+        "Betting urges thrive on zero friction—if it takes two taps, your 5x impulse engine fires before logic catches up. Lock the accounts today (Monzo/Starling/Barclays gambling block + GAMSTOP + Gamban) or call GamCare free on 0808 8020 133. How much are you trying to protect tonight?",
+      ],
+      previousBotReplies,
+      turnSeed
+    );
+    return validateStructuredResponse(
+      {
+        reply,
+        sourceIds: ['playbook-6#section-3'],
+        action: 'START_CRAVING_RESET',
+      },
+      providerStatus,
+      statusNotice
+    );
+  }
+
+  // 8c. Smoking / Vaping 3-Minute Urge
+  if (
+    /\b(smoke|smoking|vape|vaping|nicotine|cig|cigarette|fag|puff|3-min|3 min)\b/i.test(
+      latestLower
+    )
+  ) {
+    const reply = pickNonRepeating(
+      [
+        "A smoke or vape urge peaks hard and drops inside 3 minutes flat—you only have to outlast 180 seconds. Drink a big glass of cold water, step into a different room, and hit the 3-Minute Nicotine Urge Surfer inside Craving Reset right now. What triggered the reach just now—habit, stress, or a break?",
+        "Your body is already healing faster than you think: heart rate drops in 20 minutes and taste rebounds in 48 hours. Surf this 3-minute wave with deep slow exhales and keep your hands busy for 180 seconds. Still holding off?",
+      ],
+      previousBotReplies,
+      turnSeed
+    );
+    return validateStructuredResponse(
+      {
+        reply,
+        sourceIds: ['playbook-6#section-1'],
+        action: 'START_CRAVING_RESET',
+      },
+      providerStatus,
+      statusNotice
+    );
+  }
+
+  // 8d. Night-out / Cocaine / Drug Trigger
+  if (
+    /\b(cocaine|coke|gear|bag|drugs|substance|comedown|night-out|night out|dealer|line|sniff)\b/i.test(
+      latestLower
+    )
+  ) {
+    const reply = pickNonRepeating(
+      [
+        "Good on you for talking this out instead of acting on autopilot, mate. Night-out and substance triggers hit hard when tiredness, mates, or alcohol lower your guard. Step out of that room or away from the pub right now, delete/mute high-risk contacts tonight, and eat a proper meal or hit Craving Reset. Are you somewhere safe right now?",
+        "Comedowns and late-night urges lie to you—they tell you one more hit will fix how flat you feel, when really your brain just needs water, calories, and sleep. You can also speak free and confidentially with Talk to Frank (0300 123 6600) or Cocaine Anonymous UK (0800 612 0225). Want to run the 60s reset or head home now?",
+      ],
+      previousBotReplies,
+      turnSeed
+    );
+    return validateStructuredResponse(
+      {
+        reply,
+        sourceIds: ['playbook-6#section-2'],
+        action: 'START_CRAVING_RESET',
       },
       providerStatus,
       statusNotice

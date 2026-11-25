@@ -1,0 +1,16 @@
+<svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ironclad Recovery Oats">
+  <rect width="400" height="220" fill="#F8FAFC"/>
+  <circle cx="200" cy="110" r="82" fill="#FFFFFF" stroke="#7A263A" stroke-width="5"/>
+  <circle cx="200" cy="110" r="68" fill="#FEF3C7"/>
+  <!-- Berries & cacao -->
+  <circle cx="174" cy="92" r="11" fill="#7A263A"/>
+  <circle cx="196" cy="82" r="10" fill="#1E293B"/>
+  <circle cx="218" cy="90" r="11" fill="#7A263A"/>
+  <circle cx="232" cy="112" r="10" fill="#1E293B"/>
+  <!-- Banana slices -->
+  <circle cx="170" cy="124" r="13" fill="#FDE68A" stroke="#F59E0B" stroke-width="2"/>
+  <circle cx="196" cy="136" r="13" fill="#FDE68A" stroke="#F59E0B" stroke-width="2"/>
+  <circle cx="222" cy="134" r="12" fill="#FDE68A" stroke="#F59E0B" stroke-width="2"/>
+  <!-- Pumpkin seeds -->
+  <ellipse cx="202" cy="110" rx="14" ry="6" fill="#15803D"/>
+</svg>
